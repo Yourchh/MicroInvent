@@ -1,0 +1,18 @@
+version: '3.8'
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: microinvent_db
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: adminpassword
+      POSTGRES_DB: microinvent
+    volumes:
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+  redis:
+    image: redis:alpine
+    container_name: microinvent_redis
+    ports:
+      - "6379:6379"
