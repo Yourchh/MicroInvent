@@ -3,37 +3,37 @@
 ![Status](https://img.shields.io/badge/Status-In%20Development-yellow) ![Version](https://img.shields.io/badge/Version-1.0.0-blue) ![License](https://img.shields.io/badge/License-MIT-green)
 
 ## 📖 Descripción del Proyecto
-MicroInvent es una Aplicación Web Progresiva (PWA) diseñada para gestionar inventarios en tiempo real para negocios con múltiples sucursales. [cite_start]El sistema resuelve problemas de inconsistencia de stock mediante una arquitectura **Offline-First**, sincronización automática y manejo de concurrencia distribuida[cite: 5, 10].
+MicroInvent es una Aplicación Web Progresiva (PWA) diseñada para gestionar inventarios en tiempo real para negocios con múltiples sucursales. El sistema resuelve problemas de inconsistencia de stock mediante una arquitectura **Offline-First**, sincronización automática y manejo de concurrencia distribuida.
 
 El proyecto está diseñado para ser desplegado en **AWS** utilizando servicios gestionados para garantizar escalabilidad y alta disponibilidad.
 
 ## 🛠 Stack Tecnológico
 
-[cite_start]La arquitectura ha sido seleccionada para cumplir con los requisitos de alto rendimiento, funcionamiento sin conexión y actualizaciones en tiempo real[cite: 7].
+La arquitectura ha sido seleccionada para cumplir con los requisitos de alto rendimiento, funcionamiento sin conexión y actualizaciones en tiempo real.
 
 ### Frontend (PWA Offline-First)
-* [cite_start]**Core:** React.js + Vite[cite: 10].
+* **Core:** React.js + Vite.
 * **Estado & Sync:** TanStack Query (Gestión de estado asíncrono y caché).
-* [cite_start]**Base de Datos Local:** Dexie.js (Wrapper para IndexedDB) para almacenamiento offline[cite: 118].
+* **Base de Datos Local:** Dexie.js (Wrapper para IndexedDB) para almacenamiento offline.
 * **Estilos:** TailwindCSS (para diseño responsive rápido).
-* [cite_start]**Tiempo Real:** Socket.io Client[cite: 14].
+* **Tiempo Real:** Socket.io Client.
 
 ### Backend (API RESTful & Microservicios Lógicos)
-* [cite_start]**Runtime:** Node.js[cite: 13].
+* **Runtime:** Node.js.
 * **Framework:** Express.js.
 * **Validación:** Joi/Zod.
-* [cite_start]**Seguridad:** JWT para autenticación y Bcrypt para hashing[cite: 13].
+* **Seguridad:** JWT para autenticación y Bcrypt para hashing.
 
 ### Base de Datos & Caché
-* [cite_start]**Relacional:** PostgreSQL (Motor principal transaccional)[cite: 16].
-* [cite_start]**Caché:** Redis (Para sesiones y consultas frecuentes de catálogo)[cite: 57, 108].
-* [cite_start]**Control de Concurrencia:** Optimistic Locking (campo `version` en tablas críticas)[cite: 97].
+* **Relacional:** PostgreSQL (Motor principal transaccional).
+* **Caché:** Redis (Para sesiones y consultas frecuentes de catálogo).
+* **Control de Concurrencia:** Optimistic Locking (campo `version` en tablas críticas).
 
-### [cite_start]Infraestructura Cloud (AWS) [cite: 19, 141]
+### Infraestructura Cloud (AWS)
 * **Frontend Hosting:** AWS Amplify.
 * **Backend Hosting:** AWS Elastic Beanstalk (Load Balancer + Auto-scaling).
 * **Database:** Amazon RDS (PostgreSQL).
-* [cite_start]**Storage:** Amazon S3 (Almacenamiento de reportes/imágenes)[cite: 148].
+* **Storage:** Amazon S3 (Almacenamiento de reportes/imágenes).
 
 ---
 
@@ -43,11 +43,11 @@ El desarrollo se divide por dominios funcionales para mantener la independencia 
 
 | Desarrollador | Módulo / Funcionalidad | Descripción Técnica |
 | :--- | :--- | :--- |
-| **Jorge** | [cite_start]**Autenticación y Autorización** [cite: 25] | Implementación de JWT, Middleware de protección de rutas, Roles (Admin/Sucursal). |
-| **Jorge** | [cite_start]**Inventario por Sucursal** [cite: 26] | CRUD de productos, visualización de stock en tiempo real, manejo de alertas de stock bajo. |
-| **Jorge** | [cite_start]**Reportes y Análisis** [cite: 29] | Generación de reportes de movimientos, análisis simple de stock y exportación (S3). |
-| **Angel** | [cite_start]**Transferencias entre Sucursales** [cite: 27] | Lógica de negocio para mover stock (Solicitud -> Aprobación -> Envío -> Recepción) con transacciones. |
-| **Angel** | [cite_start]**Registro de Entradas/Salidas** [cite: 28] | Módulo de registro de movimientos (Compras/Ventas/Mermas) y auditoría de cambios. |
+| **Jorge** | **Autenticación y Autorización** | Implementación de JWT, Middleware de protección de rutas, Roles (Admin/Sucursal). |
+| **Jorge** | **Inventario por Sucursal** | CRUD de productos, visualización de stock en tiempo real, manejo de alertas de stock bajo. |
+| **Jorge** | **Reportes y Análisis** | Generación de reportes de movimientos, análisis simple de stock y exportación (S3). |
+| **Angel** | **Transferencias entre Sucursales** | Lógica de negocio para mover stock (Solicitud -> Aprobación -> Envío -> Recepción) con transacciones. |
+| **Angel** | **Registro de Entradas/Salidas** | Módulo de registro de movimientos (Compras/Ventas/Mermas) y auditoría de cambios. |
 
 ---
 
@@ -79,7 +79,7 @@ El desarrollo se divide por dominios funcionales para mantener la independencia 
     ```
 
 ## 🏗 Arquitectura de Base de Datos (Preliminar)
-[cite_start]El esquema utiliza un diseño optimizado para transacciones concurrentes con triggers para auditoría[cite: 17, 18].
+El esquema utiliza un diseño optimizado para transacciones concurrentes con triggers para auditoría.
 
 * `users` (Roles, Credenciales)
 * `products` (Catálogo global)
@@ -89,4 +89,4 @@ El desarrollo se divide por dominios funcionales para mantener la independencia 
 * `transfers` (Máquina de estados para envíos)
 
 ---
-*Proyecto desarrollado para la materia de Ingeniería de Software / Taller de Base de Datos.*
+*Proyecto desarrollado para la materia de Desarrollo y Despliegue de Aplicaciones en La Nube, Programacion Web para Clientes y Usabilidad, Desarrollo Backend con Frameworks Modernos, Gestion de Proyectos de Software*
