@@ -7,6 +7,7 @@ require('dotenv').config();
 const authRoutes = require('./routes/authRoutes');
 const productRoutes = require('./routes/productRoutes');
 const inventoryRoutes = require('./routes/inventoryRoutes');
+const reportRoutes = require('./routes/reportRoutes');
 
 // 2. INICIALIZAR LA APP (¡Esta línea debe ir antes de los app.use!)
 const app = express(); 
@@ -20,6 +21,7 @@ app.use(morgan('dev'));
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/inventory', inventoryRoutes);
+app.use('/api/reports', reportRoutes);
 
 // Ruta base de prueba
 app.get('/', (req, res) => res.send('API MicroInvent Funcionando 🚀'));
