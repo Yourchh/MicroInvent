@@ -4,8 +4,10 @@ const morgan = require('morgan');
 require('dotenv').config();
 
 // Importar rutas
-const authRoutes = require('./routes/authRoutes');
-const productRoutes = require('./routes/productRoutes');
+app.use('/api/auth', authRoutes);
+app.use('/api/products', productRoutes);
+app.use('/api/movements', movementRoutes);
+app.use('/api/inventory', inventoryRoutes);
 
 const app = express();
 
