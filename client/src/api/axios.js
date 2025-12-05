@@ -1,11 +1,11 @@
 import axios from 'axios';
 
-const client = axios.create({
-  baseURL: 'http://localhost:3000/api', // La URL de tu servidor Node
+const api = axios.create({
+  baseURL: 'http://localhost:3000/api', // Ajusta si tu puerto cambia
 });
 
-// Interceptor: Antes de cada petición, inyectar el Token si existe
-client.interceptors.request.use((config) => {
+// Interceptor para agregar el token automáticamente
+api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
@@ -13,4 +13,4 @@ client.interceptors.request.use((config) => {
   return config;
 });
 
-export default client;
+export default api;
