@@ -11,7 +11,6 @@ const getInventoryByBranch = async (req, res) => {
       SELECT 
         i.id,
         i.quantity,
-        i.last_updated,
         p.name as product_name,
         p.sku,
         p.price
