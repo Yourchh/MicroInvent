@@ -57,5 +57,12 @@ CREATE TABLE transfers (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS transfer_items (
+    id SERIAL PRIMARY KEY,
+    transfer_id INT REFERENCES transfers(id) ON DELETE CASCADE,
+    product_id INT REFERENCES products(id),
+    quantity INT NOT NULL
+);
+
 -- DATOS INICIALES
 INSERT INTO branches (name) VALUES ('Matriz'), ('Sucursal Norte');
