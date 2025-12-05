@@ -3,13 +3,23 @@ const cors = require('cors');
 const morgan = require('morgan');
 require('dotenv').config();
 
+// Importar rutas
+const authRoutes = require('./routes/authRoutes');
+const productRoutes = require('./routes/productRoutes');
+
 const app = express();
 
+// Middlewares globales
 app.use(cors());
 app.use(express.json());
 app.use(morgan('dev'));
 
-app.get('/', (req, res) => res.send('API MicroInvent Ready'));
+// Usar Rutas (Aquí se definen los prefijos)
+app.use('/api/auth', authRoutes);
+app.use('/api/products', productRoutes);
+
+// Ruta base de prueba
+app.get('/', (req, res) => res.send('API MicroInvent Funcionando 🚀'));
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 Servidor corriendo en puerto ${PORT}`));
