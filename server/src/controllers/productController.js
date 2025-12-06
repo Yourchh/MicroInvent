@@ -70,3 +70,56 @@ exports.createProduct = async (req, res) => {
     client.release(); // Liberar el cliente de vuelta al pool
   }
 };
+
+// --- NUEVA FUNCIÓN: ACTUALIZAR ---
+exports.updateProduct = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { sku, name, price, min_stock_alert } = req.body;
+    
+    const query = `
+      UPDATE products 
+      SET sku = $1, name = $2, price = $3, min_stock_alert = $4
+      WHERE id = $5 RETURNING *
+    `;
+    const { rows } = await pool.query(query, [sku, name, price, min_stock_alert, id]);
+
+    if (rows.length === 0) return res.status(404).json({ message: 'Producto no encontrado' });
+    
+    res.json({ message: 'Producto actualizado', product: rows[0] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// --- NUEVA FUNCIÓN: ELIMINAR ---
+exports.deleteProduct = async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { id } = req.params;
+    await client.query('BEGIN');
+
+    // 1. Primero borramos el inventario asociado (integridad referencial)
+    await client.query('DELETE FROM inventory WHERE product_id = $1', [id]);
+
+    // 2. Luego borramos el producto
+    const { rowCount } = await client.query('DELETE FROM products WHERE id = $1', [id]);
+
+    if (rowCount === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ message: 'Producto no encontrado' });
+    }
+
+    await client.query('COMMIT');
+    res.json({ message: 'Producto eliminado correctamente' });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    // Código 23503 es violación de llave foránea (ej. si tiene movimientos históricos)
+    if (err.code === '23503') {
+      return res.status(400).json({ message: 'No se puede eliminar: El producto tiene historial de movimientos.' });
+    }
+    res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
+  }
+};

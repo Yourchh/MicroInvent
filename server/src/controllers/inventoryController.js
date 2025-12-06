@@ -5,15 +5,18 @@ const getInventoryByBranch = async (req, res) => {
   try {
     const { branchId } = req.params;
 
-    // Consulta con JOIN para traer nombre del producto y SKU
-    // Solo trae productos que tengan registro en esa sucursal
+    // --- CORRECCIÓN CRÍTICA ---
+    // Agregamos 'p.id as product_id' para distinguir
+    // entre el ID del inventario y el ID del producto real.
     const query = `
       SELECT 
-        i.id,
+        i.id as inventory_id,
         i.quantity,
+        p.id as product_id,
         p.name as product_name,
         p.sku,
-        p.price
+        p.price,
+        p.min_stock_alert
       FROM inventory i
       JOIN products p ON i.product_id = p.id
       WHERE i.branch_id = $1
