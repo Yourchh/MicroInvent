@@ -45,11 +45,16 @@ export default function Inventory() {
 
   // --- HELPERS ---
   const handleSuccess = async (msg) => {
+    closeModal(); // CORRECCIÓN: Cierra el modal inmediatamente
+
     // Al guardar, invalidamos la query de sync para forzar una recarga del servidor
     // Esto disparará la función processQueue si estamos online.
-    await queryClient.invalidateQueries(['syncInventory']);
-    closeModal();
-    alert(msg);
+    await queryClient.invalidateQueries(['syncInventory']); 
+    
+    // CORRECCIÓN: Solo muestra la alerta si hay internet (online)
+    if (isOnline) { 
+        alert(msg);
+    }
   };
 
   const handleError = (err) => {
@@ -135,8 +140,8 @@ export default function Inventory() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries(['syncInventory']);
-      alert("Producto eliminado.");
+      // CORRECCIÓN: Usar handleSuccess para flujo consistente
+      handleSuccess("Producto eliminado.");
     },
     onError: (err) => alert(err.response?.data?.message || "Error al eliminar")
   });

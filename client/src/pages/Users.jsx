@@ -45,11 +45,17 @@ export default function Users() {
     return branches.find(b => b.id === id)?.name || 'N/A';
   };
 
+  // CORRECCIÓN: Implementación mejorada de handleSuccess
   const handleSuccess = async (msg) => {
-    // Forzamos la sincronización para que el hook useUserSync actualice la vista
+    closeModal(); // 1. Cierra el modal inmediatamente para el usuario
+
+    // 2. Invalida la query para forzar la actualización/sync
     await queryClient.invalidateQueries(['syncUsers']); 
-    closeModal();
-    alert(msg);
+    
+    // 3. Muestra la alerta SOLO si estamos online
+    if (isOnline) {
+      alert(msg);
+    }
   };
 
   const handleError = (err) => {
@@ -126,7 +132,7 @@ export default function Users() {
           }
       }
     },
-    onSuccess: () => handleSuccess("Usuario eliminado."),
+    onSuccess: () => handleSuccess("Usuario eliminado."), // Usa la función corregida
     onError: (err) => {
         if (err.message !== "Cancelado") alert(err.response?.data?.message || 'Error al eliminar');
         queryClient.invalidateQueries(['syncUsers']); 

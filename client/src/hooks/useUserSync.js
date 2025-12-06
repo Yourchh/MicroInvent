@@ -52,8 +52,20 @@ export function useUserSync() {
       const { data } = await api.get('/users'); 
       
       await db.transaction('rw', db.users, async () => {
-        await db.users.clear(); 
+        // --- CORRECCIÓN CRÍTICA: Sincronización No Destructiva ---
+        // 1. Obtener todos los IDs de los registros locales que son numéricos (ya sincronizados)
+        const allUsers = await db.users.toArray();
+        const syncedIdsToDelete = allUsers
+          .filter(u => typeof u.id === 'number')
+          .map(u => u.id);
+        
+        // 2. Eliminar solo los registros previamente sincronizados.
+        // Esto PRESERVA los registros con IDs temporales (strings) creados offline.
+        await db.users.bulkDelete(syncedIdsToDelete);
+
+        // 3. Insertar/Actualizar los registros frescos del servidor.
         await db.users.bulkPut(data); 
+        // ---------------------------------------------------------
       });
       
       console.log('✅ Lista de usuarios local actualizada');
