@@ -9,6 +9,7 @@ import Users from './pages/Users';
 // --- IMPORTAMOS LAS NUEVAS VISTAS ---
 import Dashboard from './pages/Dashboard';
 import Reports from './pages/Reports';
+import Settings from './pages/Settings';
 
 const queryClient = new QueryClient();
 
@@ -34,6 +35,7 @@ function AppRoutes() {
         <Route path="inventory" element={<Inventory />} />
         <Route path="reports" element={<Reports />} />
         <Route path="users" element={<Users />} />
+        <Route path="settings" element={<Settings />} />
       </Route>
     </Routes>
   );

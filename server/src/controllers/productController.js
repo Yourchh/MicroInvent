@@ -1,5 +1,5 @@
 const Product = require('../models/productModel');
-const pool = require('../config/db');
+const pool = require('../config/db'); // <--- ESTA LÍNEA ES LA CLAVE
 
 exports.getAllProducts = async (req, res) => {
   try {
@@ -12,15 +12,18 @@ exports.getAllProducts = async (req, res) => {
 
 exports.createProduct = async (req, res) => {
   try {
-    const { sku, name, price, min_stock_alert, branch_id } = req.body; // Recibimos branch_id
+    // Recibimos los datos del frontend
+    const { sku, name, price, min_stock_alert, branch_id } = req.body;
     
+    // 1. Validar si ya existe el SKU
     const existing = await Product.findBySku(sku);
     if (existing) return res.status(400).json({ message: 'SKU ya existe' });
 
-    // 1. Crear el producto en el catálogo global
+    // 2. Crear el producto en la tabla 'products'
     const newProduct = await Product.create(sku, name, price, min_stock_alert);
 
-    // 2. Inicializar inventario en 0 para la sucursal actual (si se envió branch_id)
+    // 3. Crear el inventario inicial (stock 0) en la tabla 'inventory'
+    // Si falla aquí, es donde se crea el "producto fantasma".
     if (branch_id) {
       await pool.query(
         'INSERT INTO inventory (branch_id, product_id, quantity) VALUES ($1, $2, 0)',
@@ -30,7 +33,7 @@ exports.createProduct = async (req, res) => {
 
     res.status(201).json(newProduct);
   } catch (err) {
-    console.error(err);
+    console.error("Error creando producto:", err);
     res.status(500).json({ error: err.message });
   }
 };

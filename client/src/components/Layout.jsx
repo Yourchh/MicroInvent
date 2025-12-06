@@ -1,6 +1,7 @@
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { LayoutDashboard, Package, FileText, LogOut, Users } from 'lucide-react';
+import { Settings as SettingsIcon } from 'lucide-react';
 
 // eslint-disable-next-line no-unused-vars
 const NavItem = ({ to, icon: Icon, label }) => {
@@ -26,6 +27,7 @@ export default function Layout() {
   const { user, logout } = useAuth();
   
   const isAdmin = user?.role === 'admin';
+  const canViewReports = ['admin', 'manager'].includes(user?.role);
 
   return (
     <div className="min-h-screen flex bg-background">
@@ -41,8 +43,13 @@ export default function Layout() {
         <nav className="flex-1 space-y-2">
           <NavItem to="/dashboard" icon={LayoutDashboard} label="Dashboard" />
           <NavItem to="/dashboard/inventory" icon={Package} label="Inventario" />
-          <NavItem to="/dashboard/reports" icon={FileText} label="Reportes" />
-          {isAdmin && ( <NavItem to="/dashboard/users" icon={Users} label="Usuarios" /> )}
+          {canViewReports && (<NavItem to="/dashboard/reports" icon={FileText} label="Reportes" />)}
+          {isAdmin && (
+            <>
+            <NavItem to="/dashboard/users" icon={Users} label="Usuarios" />
+            <NavItem to="/dashboard/settings" icon={SettingsIcon} label="Configuración" /> 
+            </>
+            )}
         </nav>
 
         <div className="pt-6 border-t border-slate-100">

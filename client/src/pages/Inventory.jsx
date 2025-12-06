@@ -1,16 +1,26 @@
-import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState, useEffect } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
-import { Search, Plus, X, Save, Package, AlertTriangle } from 'lucide-react';
-import { Button } from '../components/ui/Button'; // Reutilizamos tu botón
+import { Search, Plus, X, Save, Package, AlertTriangle, Wifi, WifiOff, RefreshCw } from 'lucide-react';
+import { Button } from '../components/ui/Button';
+// Importamos el hook de sincronización para que funcione Offline y refresque rápido
+import { useInventorySync } from '../hooks/useInventorySync';
 
 export default function Inventory() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const branchId = user?.branch_id || 1; // Fallback para desarrollo
+  
+  // ASEGURAR EL ID DE SUCURSAL
+  // Si user.branch_id es undefined, usamos 1 como fallback, pero imprimimos advertencia
+  const branchId = user?.branch_id || 1;
 
-  // Estados
+  useEffect(() => {
+    console.log("🏢 Trabajando en Sucursal ID:", branchId);
+    if (!user?.branch_id) console.warn("⚠️ Usuario sin branch_id en el token. Usando ID 1 por defecto.");
+  }, [branchId, user]);
+
+  // Estados de UI
   const [search, setSearch] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -23,27 +33,34 @@ export default function Inventory() {
     min_stock_alert: 5
   });
 
-  // 1. Obtener Inventario
-  const { data: products, isLoading} = useQuery({
-    queryKey: ['inventory', branchId],
-    queryFn: async () => {
-        const { data } = await api.get(`/inventory/${branchId}`);
-        return data;
-    }
-  });
+  // 1. OBTENER INVENTARIO (USANDO EL HOOK OFFLINE-FIRST)
+  // Esto reemplaza tu useQuery anterior. 'products' se actualiza solo cuando Dexie cambia.
+  const { inventory: products, isOnline } = useInventorySync(branchId);
 
-  // 2. Mutación para Crear Producto
+  // 2. MUTACIÓN PARA CREAR PRODUCTO
   const createProductMutation = useMutation({
     mutationFn: async (newProduct) => {
-      // Enviamos también el branch_id para inicializar el stock
-      await api.post('/products', { ...newProduct, branch_id: branchId });
+      // Enviamos branch_id explícitamente para que el backend cree el stock inicial
+      const payload = { ...newProduct, branch_id: branchId };
+      console.log("📤 Enviando producto:", payload);
+      await api.post('/products', payload);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries(['inventory']); // Recarga la tabla automáticamente
+      // Al tener éxito, invalidamos para que useInventorySync vuelva a descargar datos del servidor
+      queryClient.invalidateQueries(['inventory']);
       closeModal();
-      setFormData({ sku: '', name: '', price: '', min_stock_alert: 5 }); // Limpia formulario
+      setFormData({ sku: '', name: '', price: '', min_stock_alert: 5 });
+      
+      // Feedback visual inmediato
+      alert("Producto creado exitosamente. La lista se actualizará en breve.");
+      
+      // Truco para forzar actualización visual si la sincronización tarda un poco
+      if(isOnline) {
+        setTimeout(() => window.location.reload(), 500);
+      }
     },
     onError: (err) => {
+      console.error("❌ Error creando producto:", err);
       setErrorMsg(err.response?.data?.message || 'Error al crear producto');
     }
   });
@@ -63,21 +80,31 @@ export default function Inventory() {
     setErrorMsg('');
   };
 
-  // Filtrado local
+  // Filtrado local seguro (con ?. para evitar errores si products es null)
   const filteredProducts = products?.filter(p => 
-    p.product_name.toLowerCase().includes(search.toLowerCase()) ||
-    p.sku.toLowerCase().includes(search.toLowerCase())
+    (p.product_name || p.name || '').toLowerCase().includes(search.toLowerCase()) ||
+    (p.sku || '').toLowerCase().includes(search.toLowerCase())
   );
-
-  if (isLoading) return <div className="p-8 text-center text-slate-500">Cargando inventario...</div>;
 
   return (
     <div className="relative">
+      {/* Indicador de Estado de Red */}
+      <div className={`fixed bottom-4 right-4 p-3 rounded-full shadow-lg z-50 flex items-center gap-2 transition-colors ${isOnline ? 'bg-green-100 text-green-600' : 'bg-slate-800 text-white'}`}>
+        {isOnline ? <Wifi size={20} /> : <WifiOff size={20} />}
+        {!isOnline && <span className="text-xs font-bold pr-1">Offline</span>}
+      </div>
+
       {/* Encabezado */}
       <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
         <div>
           <h2 className="text-2xl font-bold text-slate-800">Inventario</h2>
-          <p className="text-slate-500">Gestión de stock en tiempo real</p>
+          <div className="flex items-center gap-2 text-slate-500">
+            <p>Gestión de stock en tiempo real</p>
+            {/* Botón de recarga manual por si acaso */}
+            <button onClick={() => window.location.reload()} title="Recargar lista" className="hover:text-blue-600">
+                <RefreshCw size={14} />
+            </button>
+          </div>
         </div>
         
         <div className="flex gap-3 w-full md:w-auto">
@@ -122,7 +149,9 @@ export default function Inventory() {
                       <div className="bg-blue-50 p-2 rounded-lg text-primary">
                         <Package size={16} />
                       </div>
-                      <span className="text-sm font-medium text-slate-800">{product.product_name}</span>
+                      <span className="text-sm font-medium text-slate-800">
+                        {product.product_name || product.name}
+                      </span>
                     </div>
                   </td>
                   <td className="px-6 py-4 text-sm text-slate-600 text-right">${product.price}</td>
@@ -141,7 +170,9 @@ export default function Inventory() {
             ) : (
               <tr>
                 <td colSpan="5" className="p-8 text-center text-slate-400">
-                  No se encontraron productos. ¡Registra uno nuevo!
+                  {isOnline 
+                    ? 'No hay productos visibles. Intenta recargar o crear uno nuevo.' 
+                    : 'Sin conexión. No hay datos locales guardados.'}
                 </td>
               </tr>
             )}
@@ -228,8 +259,8 @@ export default function Inventory() {
 
               <div className="pt-4 flex justify-end gap-3">
                 <Button variant="outline" onClick={closeModal}>Cancelar</Button>
-                <Button type="submit" disabled={createProductMutation.isPending}>
-                  {createProductMutation.isPending ? 'Guardando...' : <><Save size={18} /> Registrar</>}
+                <Button type="submit" disabled={createProductMutation.isPending || !isOnline}>
+                  {createProductMutation.isPending ? 'Guardando...' : (isOnline ? <><Save size={18} /> Registrar</> : 'Requiere Internet')}
                 </Button>
               </div>
             </form>
