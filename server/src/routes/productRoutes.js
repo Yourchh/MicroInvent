@@ -6,5 +6,7 @@ const { verifyToken } = require('../middlewares/authMiddleware');
 // Rutas protegidas por el Middleware
 router.get('/', verifyToken, productController.getAllProducts);
 router.post('/', verifyToken, productController.createProduct);
+router.put('/:id', verifyToken, productController.updateProduct);
+router.delete('/:id', verifyToken, productController.deleteProduct);
 
 module.exports = router;
