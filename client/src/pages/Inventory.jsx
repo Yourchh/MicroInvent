@@ -1,14 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
-import { Search, Plus, X, Save, Package, AlertTriangle, Wifi, RefreshCw, MapPin, Pencil, Trash2 } from 'lucide-react';
+import { Search, Plus, X, Save, Package, AlertTriangle, Wifi, WifiOff, RefreshCw, MapPin, Pencil, Trash2 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
+import { useInventorySync } from '../hooks/useInventorySync'; 
+import { db } from '../db'; 
+import { addToQueue } from '../services/syncQueue'; 
 
 export default function Inventory() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  
   const [selectedBranchId, setSelectedBranchId] = useState(user?.branch_id || 1);
 
   // 1. QUERY DE SUCURSALES
@@ -25,30 +27,15 @@ export default function Inventory() {
     }
   });
 
-  // 2. QUERY DE INVENTARIO
-  const { data: products = [], isLoading } = useQuery({
-    queryKey: ['inventory', selectedBranchId],
-    queryFn: async () => {
-      try {
-        console.log("🔄 Descargando inventario...", selectedBranchId);
-        const res = await api.get(`/inventory/${selectedBranchId}`);
-        return Array.isArray(res.data) ? res.data : [];
-      } catch (e) {
-        console.error("Error cargando inventario:", e);
-        return [];
-      }
-    }
-  });
+  // 2. USAR EL HOOK OFFLINE-FIRST
+  const { inventory: products, isOnline, isSyncing } = useInventorySync(selectedBranchId);
 
   // Estados UI
   const [search, setSearch] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [editingProduct, setEditingProduct] = useState(null);
-
-  const [formData, setFormData] = useState({
-    sku: '', name: '', price: '', min_stock_alert: 5
-  });
+  const [formData, setFormData] = useState({ sku: '', name: '', price: '', min_stock_alert: 5 });
 
   const closeModal = () => {
     setIsModalOpen(false);
@@ -56,9 +43,11 @@ export default function Inventory() {
     setEditingProduct(null);
   };
 
-  // --- HELPERS (MOVIDOS ARRIBA PARA EVITAR EL ERROR) ---
-  const handleSuccess = (msg) => {
-    queryClient.invalidateQueries(['inventory']);
+  // --- HELPERS ---
+  const handleSuccess = async (msg) => {
+    // Al guardar, invalidamos la query de sync para forzar una recarga del servidor
+    // Esto disparará la función processQueue si estamos online.
+    await queryClient.invalidateQueries(['syncInventory']);
     closeModal();
     alert(msg);
   };
@@ -67,41 +56,96 @@ export default function Inventory() {
     console.error(err);
     setErrorMsg(err.response?.data?.message || err.message || 'Error en la operación');
   };
+  // ---------------------------------------------------------------------------------
 
-  // --- MUTACIONES (AHORA SÍ PUEDEN LEER LOS HELPERS) ---
+  // --- MUTACIONES (Híbridas: Online/Offline Queuing) ---
+  
   const createMutation = useMutation({
-    mutationFn: async (data) => await api.post('/products', { ...data, branch_id: selectedBranchId }),
-    onSuccess: () => handleSuccess("Producto creado exitosamente."),
+    mutationFn: async (data) => {
+      const payload = { ...data, branch_id: selectedBranchId };
+
+      if (isOnline) {
+        // MODO ONLINE: Directo al servidor
+        await api.post('/products', payload);
+      } else {
+        // MODO OFFLINE: Guardar local + Cola
+        const tempId = `temp_${Date.now()}`; // Generamos ID temporal
+        
+        // 1. Guardar en Inventario Local (Optimista y visible al usuario)
+        await db.inventory.add({
+          id: tempId, 
+          branch_id: selectedBranchId,
+          sku: data.sku,
+          product_name: data.name,
+          price: data.price,
+          quantity: 0, 
+          min_stock_alert: data.min_stock_alert
+        });
+
+        // 2. Agregar a la cola de subida
+        await addToQueue('CREATE', payload, tempId);
+      }
+    },
+    onSuccess: () => handleSuccess(isOnline ? "Producto creado." : "Guardado sin conexión. Se subirá al volver internet."),
     onError: handleError
   });
 
   const updateMutation = useMutation({
     mutationFn: async (data) => {
       const idToUpdate = editingProduct?.product_id || editingProduct?.id;
-      if (!idToUpdate) throw new Error("No se encontró el ID del producto");
-      await api.put(`/products/${idToUpdate}`, data);
+      
+      // 1. Actualización Optimista Local (Inmediata y visible)
+      if (editingProduct.id) { 
+          await db.inventory.update(editingProduct.id, {
+              sku: data.sku,
+              product_name: data.name,
+              price: data.price,
+              min_stock_alert: data.min_stock_alert
+          });
+      }
+
+      if (isOnline) {
+        await api.put(`/products/${idToUpdate}`, data);
+      } else {
+        // MODO OFFLINE: Si es offline, a la cola
+        await addToQueue('UPDATE', { ...data, id: idToUpdate });
+      }
     },
-    onSuccess: () => handleSuccess("Producto actualizado correctamente."),
+    onSuccess: () => handleSuccess(isOnline ? "Producto actualizado." : "Cambio guardado localmente."),
     onError: handleError
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async (id) => await api.delete(`/products/${id}`),
+    mutationFn: async (id) => {
+      // 1. Eliminación Optimista Local (El producto desaparece inmediatamente)
+      await db.inventory.delete(id); 
+
+      if (isOnline) {
+        await api.delete(`/products/${id}`);
+      } else {
+        // MODO OFFLINE: Lógica de cola
+        // Si el ID es temporal (string), eliminamos la acción de CREATE de la cola.
+        if (typeof id === 'number') { 
+            await addToQueue('DELETE', { id });
+        } else {
+            // Es temporal, debemos borrar la acción de creación pendiente si existe
+            const createAction = await db.mutations.where('tempId').equals(id).first();
+            if (createAction) await db.mutations.delete(createAction.id);
+        }
+      }
+    },
     onSuccess: () => {
-      queryClient.invalidateQueries(['inventory']);
+      queryClient.invalidateQueries(['syncInventory']);
       alert("Producto eliminado.");
     },
     onError: (err) => alert(err.response?.data?.message || "Error al eliminar")
   });
 
-  // --- HANDLERS RESTANTES ---
+  // Handlers
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (editingProduct) {
-      updateMutation.mutate(formData);
-    } else {
-      createMutation.mutate(formData);
-    }
+    if (editingProduct) updateMutation.mutate(formData);
+    else createMutation.mutate(formData);
   };
 
   const openNewModal = () => {
@@ -119,7 +163,6 @@ export default function Inventory() {
       price: product.price || '',
       min_stock_alert: product.min_stock_alert || 5
     });
-    setErrorMsg('');
     setIsModalOpen(true);
   };
 
@@ -142,10 +185,14 @@ export default function Inventory() {
 
   return (
     <div className="relative">
-      <div className={`fixed bottom-4 right-4 p-3 rounded-full shadow-lg z-50 flex items-center gap-2 bg-green-100 text-green-600`}>
-        <Wifi size={20} />
+      {/* Indicador de Estado de Red */}
+      <div className={`fixed bottom-4 right-4 p-3 rounded-full shadow-lg z-50 flex items-center gap-2 transition-all ${isOnline ? 'bg-green-100 text-green-600' : 'bg-slate-800 text-white'}`}>
+        {isOnline ? <Wifi size={20} /> : <WifiOff size={20} />}
+        {!isOnline && <span className="text-xs font-bold pr-1">Offline - Datos Locales</span>}
+        {isOnline && isSyncing && <RefreshCw size={16} className="animate-spin ml-1" />}
       </div>
 
+      {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
         <div>
           <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">Inventario</h2>
@@ -153,19 +200,25 @@ export default function Inventory() {
              <div className="flex items-center bg-white border border-slate-300 rounded-md px-2 py-1 shadow-sm">
               <MapPin size={16} className="text-primary mr-2" />
               <span className="text-sm font-medium mr-2">Sucursal:</span>
-              
               <select 
                 className="bg-transparent font-bold text-slate-700 outline-none text-sm cursor-pointer"
                 value={selectedBranchId}
                 onChange={(e) => setSelectedBranchId(Number(e.target.value))}
               >
-                <option value={1}>Matriz (Default)</option> 
-                {Array.isArray(branches) && branches.length > 0 && branches.map(branch => (
-                  <option key={branch.id} value={branch.id}>{branch.name}</option>
+                <option value={1}>Matriz</option> 
+                {Array.isArray(branches) && branches.map(b => (
+                  <option key={b.id} value={b.id}>{b.name}</option>
                 ))}
               </select>
             </div>
-            <button onClick={() => queryClient.invalidateQueries(['inventory'])} className="hover:text-blue-600 ml-2"><RefreshCw size={14} /></button>
+            <button 
+                onClick={() => queryClient.invalidateQueries(['syncInventory'])} 
+                className="hover:text-blue-600 ml-2" 
+                title="Forzar Sincronización"
+                disabled={!isOnline}
+            >
+                <RefreshCw size={14} className={isSyncing ? "animate-spin" : ""} />
+            </button>
           </div>
         </div>
         
@@ -174,10 +227,13 @@ export default function Inventory() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
             <input type="text" placeholder="Buscar..." className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg outline-none" value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
-          <Button onClick={openNewModal}><Plus size={18} /> Nuevo</Button>
+          <Button onClick={openNewModal}>
+            <Plus size={18} /> Nuevo
+          </Button>
         </div>
       </div>
 
+      {/* Tabla */}
       <div className="bg-surface rounded-xl shadow-sm border border-slate-200 overflow-hidden">
         <table className="w-full text-left">
           <thead className="bg-slate-50 border-b border-slate-200">
@@ -190,8 +246,7 @@ export default function Inventory() {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {isLoading ? <tr><td colSpan="5" className="p-8 text-center text-slate-500">Cargando...</td></tr> : 
-             filteredProducts.length > 0 ? filteredProducts.map((p) => (
+             {filteredProducts.length > 0 ? filteredProducts.map((p) => (
                 <tr key={p.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-6 py-4 text-sm font-mono text-slate-600">{p.sku}</td>
                   <td className="px-6 py-4">
@@ -203,21 +258,24 @@ export default function Inventory() {
                   <td className="px-6 py-4 text-sm text-slate-600 text-right">${p.price}</td>
                   <td className="px-6 py-4 text-sm font-bold text-center text-slate-800">{p.quantity}</td>
                   <td className="px-6 py-4 text-center flex justify-center gap-2">
-                    <button onClick={() => openEditModal(p)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Editar">
+                    <button onClick={() => openEditModal(p)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
                       <Pencil size={18} />
                     </button>
-                    <button onClick={() => handleDelete(p)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Eliminar">
+                    <button onClick={() => handleDelete(p)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
                       <Trash2 size={18} />
                     </button>
                   </td>
                 </tr>
               )) : 
-              <tr><td colSpan="5" className="p-8 text-center text-slate-400">Sin resultados</td></tr>
+              <tr><td colSpan="5" className="p-8 text-center text-slate-400">
+                  {isOnline ? 'No se encontraron productos.' : 'Sin datos locales. Conéctate a internet.'}
+              </td></tr>
             }
           </tbody>
         </table>
       </div>
 
+      {/* Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
