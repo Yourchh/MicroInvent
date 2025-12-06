@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import Login from './pages/Login';
 import Layout from './components/Layout';
 import Inventory from './pages/Inventory';
+import Users from './pages/Users';
 
 // --- IMPORTAMOS LAS NUEVAS VISTAS ---
 import Dashboard from './pages/Dashboard';
@@ -32,6 +33,7 @@ function AppRoutes() {
         <Route index element={<Dashboard />} /> {/* Dashboard es la vista por defecto */}
         <Route path="inventory" element={<Inventory />} />
         <Route path="reports" element={<Reports />} />
+        <Route path="users" element={<Users />} />
       </Route>
     </Routes>
   );

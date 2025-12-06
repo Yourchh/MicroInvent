@@ -1,6 +1,6 @@
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { LayoutDashboard, Package, FileText, LogOut } from 'lucide-react';
+import { LayoutDashboard, Package, FileText, LogOut, Users } from 'lucide-react';
 
 // eslint-disable-next-line no-unused-vars
 const NavItem = ({ to, icon: Icon, label }) => {
@@ -25,8 +25,7 @@ const NavItem = ({ to, icon: Icon, label }) => {
 export default function Layout() {
   const { user, logout } = useAuth();
   
-  // Ya no necesitamos 'useLocation' aquí para los items, 
-  // cada NavItem maneja su propia lógica.
+  const isAdmin = user?.role === 'admin';
 
   return (
     <div className="min-h-screen flex bg-background">
@@ -43,6 +42,7 @@ export default function Layout() {
           <NavItem to="/dashboard" icon={LayoutDashboard} label="Dashboard" />
           <NavItem to="/dashboard/inventory" icon={Package} label="Inventario" />
           <NavItem to="/dashboard/reports" icon={FileText} label="Reportes" />
+          {isAdmin && ( <NavItem to="/dashboard/users" icon={Users} label="Usuarios" /> )}
         </nav>
 
         <div className="pt-6 border-t border-slate-100">
