@@ -25,10 +25,10 @@ export const processQueue = async (queryClient) => {
         
         if (action.tempId) {
           // Eliminamos el registro temporal de la tabla local
-          await table.where('id').equals(action.tempId).delete();
+          await table.where('id').equals(action.tempId).delete(); //
           
           // Insertamos el registro con el ID real del servidor
-          await table.put({
+          await table.put({ //
             ...serverResponse,
             // Asegurar campos clave para display
             product_name: serverResponse.name || serverResponse.product_name, // Products
@@ -36,7 +36,7 @@ export const processQueue = async (queryClient) => {
             id: serverResponse.id 
           });
         }
-      } 
+      }
       
       else if (action.type.includes('UPDATE')) {
         // UPDATE: PUT

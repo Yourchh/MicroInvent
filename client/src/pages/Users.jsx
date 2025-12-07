@@ -45,11 +45,17 @@ export default function Users() {
     return branches.find(b => b.id === id)?.name || 'N/A';
   };
 
+  // Implementación mejorada de handleSuccess
   const handleSuccess = async (msg) => {
-    // Forzamos la sincronización para que el hook useUserSync actualice la vista
+    closeModal(); // 1. Cierra el modal inmediatamente para el usuario
+
+    // 2. Invalida la query para forzar la actualización/sync
     await queryClient.invalidateQueries(['syncUsers']); 
-    closeModal();
-    alert(msg);
+    
+    // 3. Muestra la alerta SOLO si estamos online
+    if (isOnline) {
+      alert(msg);
+    }
   };
 
   const handleError = (err) => {
@@ -72,7 +78,7 @@ export default function Users() {
               await api.post('/users', data);
           }
       } else {
-          // MODO OFFLINE: Guardar Local + Cola
+          // MODO OFFLINE: Guardar local + Cola
           if (!isEdit && !data.password) {
              throw new Error("La contraseña es obligatoria en modo offline para crear.");
           }
@@ -80,25 +86,30 @@ export default function Users() {
           const tempId = isEdit ? editingUser.id : `user_temp_${Date.now()}`;
           const finalData = isEdit ? { ...data, id: editingUser.id } : data;
           
-          // 1. Actualización Optimista Local
-          const localUser = {
-              ...finalData,
-              id: tempId,
-              created_at: new Date(),
-              // Indicador para el usuario
-              temp: !isEdit 
-          };
+          // CORRECCIÓN CLAVE: Devolver explícitamente el resultado de la transacción.
+          return db.transaction('rw', db.users, db.mutations, async () => {
+            // 1. Actualización Optimista Local
+            const localUser = {
+                ...finalData,
+                id: tempId,
+                created_at: new Date(),
+                username: finalData.username, 
+                role: finalData.role,
+                branch_id: finalData.branch_id,
+                temp: !isEdit 
+            };
 
-          if (isEdit) {
-              // Editando: Actualizar el registro local existente
-              await db.users.update(editingUser.id, localUser);
-          } else {
-              // Creando: Insertar el registro temporal
-              await db.users.add(localUser);
-          }
+            if (isEdit) {
+                // Editando: Actualizar el registro local existente
+                await db.users.update(editingUser.id, localUser);
+            } else {
+                // Creando: Insertar el registro temporal
+                await db.users.add(localUser);
+            }
 
-          // 2. Agregar a la cola
-          await addToQueue(type, finalData, isEdit ? null : tempId);
+            // 2. Agregar a la cola
+            await addToQueue(type, finalData, isEdit ? null : tempId);
+          });
       }
     },
     onSuccess: () => handleSuccess(isOnline ? "Usuario guardado." : "Guardado sin conexión. Se subirá al volver internet."),
@@ -116,17 +127,20 @@ export default function Users() {
       if (isOnline) {
           await api.delete(`/users/${id}`);
       } else {
-          // Offline: Agregar a la cola solo si no es un registro temporal
-          if (typeof id === 'number') {
-              await addToQueue('DELETE_USER', { id });
-          } else {
-              // Es un ID temporal, solo borrar la acción de CREATE si existía
-              const createAction = await db.mutations.where('tempId').equals(id).first();
-              if (createAction) await db.mutations.delete(createAction.id);
-          }
+          // MODO OFFLINE: Se resuelve inmediatamente para cerrar el modal.
+          return db.transaction('rw', db.mutations, async () => {
+            // Offline: Agregar a la cola solo si no es un registro temporal
+            if (typeof id === 'number') {
+                await addToQueue('DELETE_USER', { id });
+            } else {
+                // Es un ID temporal, solo borrar la acción de CREATE si existía
+                const createAction = await db.mutations.where('tempId').equals(id).first();
+                if (createAction) await db.mutations.delete(createAction.id);
+            }
+          });
       }
     },
-    onSuccess: () => handleSuccess("Usuario eliminado."),
+    onSuccess: () => handleSuccess("Usuario eliminado."), // Usa la función corregida
     onError: (err) => {
         if (err.message !== "Cancelado") alert(err.response?.data?.message || 'Error al eliminar');
         queryClient.invalidateQueries(['syncUsers']); 

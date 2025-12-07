@@ -45,11 +45,16 @@ export default function Inventory() {
 
   // --- HELPERS ---
   const handleSuccess = async (msg) => {
+    closeModal(); // Cierra el modal inmediatamente
+
     // Al guardar, invalidamos la query de sync para forzar una recarga del servidor
     // Esto disparará la función processQueue si estamos online.
-    await queryClient.invalidateQueries(['syncInventory']);
-    closeModal();
-    alert(msg);
+    await queryClient.invalidateQueries(['syncInventory']); 
+    
+    // Solo muestra la alerta si hay internet (online)
+    if (isOnline) { 
+        alert(msg);
+    }
   };
 
   const handleError = (err) => {
@@ -68,22 +73,25 @@ export default function Inventory() {
         // MODO ONLINE: Directo al servidor
         await api.post('/products', payload);
       } else {
-        // MODO OFFLINE: Guardar local + Cola
-        const tempId = `temp_${Date.now()}`; // Generamos ID temporal
+        // MODO OFFLINE: Se resuelve inmediatamente para cerrar el modal y mostrar el registro.
+        const tempId = `temp_${Date.now()}`; 
         
-        // 1. Guardar en Inventario Local (Optimista y visible al usuario)
-        await db.inventory.add({
-          id: tempId, 
-          branch_id: selectedBranchId,
-          sku: data.sku,
-          product_name: data.name,
-          price: data.price,
-          quantity: 0, 
-          min_stock_alert: data.min_stock_alert
-        });
+        // CORRECCIÓN CLAVE: Devolver explícitamente el resultado de la transacción.
+        return db.transaction('rw', db.inventory, db.mutations, async () => {
+             // 1. Guardar en Inventario Local (Optimista y visible al usuario)
+             await db.inventory.add({
+                id: tempId, 
+                branch_id: selectedBranchId,
+                sku: data.sku,
+                product_name: data.name, 
+                price: data.price,
+                quantity: 0, 
+                min_stock_alert: data.min_stock_alert
+            });
 
-        // 2. Agregar a la cola de subida
-        await addToQueue('CREATE', payload, tempId);
+            // 2. Agregar a la cola de subida
+            await addToQueue('CREATE', payload, tempId);
+        });
       }
     },
     onSuccess: () => handleSuccess(isOnline ? "Producto creado." : "Guardado sin conexión. Se subirá al volver internet."),
@@ -94,21 +102,35 @@ export default function Inventory() {
     mutationFn: async (data) => {
       const idToUpdate = editingProduct?.product_id || editingProduct?.id;
       
-      // 1. Actualización Optimista Local (Inmediata y visible)
-      if (editingProduct.id) { 
-          await db.inventory.update(editingProduct.id, {
-              sku: data.sku,
-              product_name: data.name,
-              price: data.price,
-              min_stock_alert: data.min_stock_alert
-          });
-      }
-
       if (isOnline) {
+        // MODO ONLINE: Directo al servidor
         await api.put(`/products/${idToUpdate}`, data);
+        
+        // Actualización Optimista Local
+        if (editingProduct.id) { 
+            await db.inventory.update(editingProduct.id, {
+                sku: data.sku,
+                product_name: data.name,
+                price: data.price,
+                min_stock_alert: data.min_stock_alert
+            });
+        }
       } else {
-        // MODO OFFLINE: Si es offline, a la cola
-        await addToQueue('UPDATE', { ...data, id: idToUpdate });
+        // MODO OFFLINE: Usamos transacción para atomicidad en la actualización local + cola.
+         // CORRECCIÓN CLAVE: Devolver explícitamente el resultado de la transacción.
+         return db.transaction('rw', db.inventory, db.mutations, async () => {
+            // 1. Actualización Optimista Local
+            if (editingProduct.id) { 
+                await db.inventory.update(editingProduct.id, {
+                    sku: data.sku,
+                    product_name: data.name,
+                    price: data.price,
+                    min_stock_alert: data.min_stock_alert
+                });
+            }
+            // 2. Agregar a la cola de actualización
+            await addToQueue('UPDATE', { ...data, id: idToUpdate });
+         });
       }
     },
     onSuccess: () => handleSuccess(isOnline ? "Producto actualizado." : "Cambio guardado localmente."),
@@ -135,8 +157,8 @@ export default function Inventory() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries(['syncInventory']);
-      alert("Producto eliminado.");
+      // Usar handleSuccess para flujo consistente
+      handleSuccess("Producto eliminado.");
     },
     onError: (err) => alert(err.response?.data?.message || "Error al eliminar")
   });
