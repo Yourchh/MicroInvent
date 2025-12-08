@@ -20,11 +20,23 @@ export const AuthProvider = ({ children }) => {
   // (A menos que quieras validar el token con el backend al inicio)
   const [loading, setLoading] = useState(false);
 
-  const login = async (username, password) => {
+  const login = async (username, password, userType) => {
     setLoading(true);
     try {
-      const { data } = await api.post('/auth/login', { username, password });
+      const { data } = await api.post('/auth/login', { username, password, userType });
       
+      // Si requiere selección de sucursal, retornar tempToken
+      if (data.requiresBranchSelection) {
+        setLoading(false);
+        return {
+          success: true,
+          requiresBranchSelection: true,
+          tempToken: data.tempToken,
+          user: data.user
+        };
+      }
+
+      // Login directo (empleado)
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
       
@@ -40,14 +52,26 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const logout = () => {
+  const logout = async () => {
+    try {
+      // Intentar logout en el servidor
+      await api.post('/auth/logout');
+    } catch (err) {
+      console.warn('Error en logout del servidor:', err.message);
+    }
+    
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     setUser(null);
   };
 
+  // Función para actualizar el usuario después de seleccionar sucursal
+  const updateUser = (userData) => {
+    setUser(userData);
+  };
+
   return (
-    <AuthContext.Provider value={{ user, login, logout, loading }}>
+    <AuthContext.Provider value={{ user, login, logout, loading, updateUser }}>
       {children}
     </AuthContext.Provider>
   );

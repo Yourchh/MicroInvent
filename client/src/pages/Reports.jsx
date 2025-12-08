@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
-import { FileText, Download, Package, TrendingUp, ShieldAlert, DollarSign } from 'lucide-react';
+import { FileText, Download, Package, TrendingUp, ShieldAlert, DollarSign, WifiOff, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import jsPDF from 'jspdf';
@@ -12,6 +12,19 @@ export default function Reports() {
   const { user } = useAuth();
   const branchId = user?.branch_id || 1;
   const [reportType, setReportType] = useState('STOCK'); // STOCK, MOVEMENTS, VALUE
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [showOfflineAlert, setShowOfflineAlert] = useState(true);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   // --- 1. CONSULTAS DE DATOS ---
   
@@ -175,6 +188,23 @@ export default function Reports() {
 
   return (
     <div className="space-y-6">
+      {/* Alerta de Modo Offline */}
+      {!isOnline && showOfflineAlert && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-lg flex items-start gap-3">
+          <WifiOff size={20} className="flex-shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="font-semibold text-sm">Datos de caché local</p>
+            <p className="text-sm">Los reportes se generan con datos almacenados en caché. Para información actualizada, conecta a internet.</p>
+          </div>
+          <button
+            onClick={() => setShowOfflineAlert(false)}
+            className="text-amber-400 hover:text-amber-600 flex-shrink-0 transition-colors"
+          >
+            <X size={18} />
+          </button>
+        </div>
+      )}
+
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-slate-800">Reportes</h2>
@@ -250,7 +280,7 @@ export default function Reports() {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {stockData?.map((item) => (
-                <tr key={item.id} className="hover:bg-slate-50">
+                <tr key={item.inventory_id || item.product_id} className="hover:bg-slate-50">
                   <td className="px-6 py-3 text-sm font-mono text-slate-600">{item.sku}</td>
                   <td className="px-6 py-3 text-sm font-medium">{item.product_name}</td>
                   <td className="px-6 py-3 text-sm text-right">${item.price}</td>
@@ -323,8 +353,8 @@ export default function Reports() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {valueData?.details?.map((d, idx) => (
-                  <tr key={idx} className="hover:bg-slate-50">
+                {valueData?.details?.map((d) => (
+                  <tr key={d.id || `${d.sku}-${d.name}`} className="hover:bg-slate-50">
                     <td className="px-6 py-3 text-sm font-medium">
                       {d.name} <span className="text-xs text-slate-400 ml-1 font-mono">({d.sku})</span>
                     </td>

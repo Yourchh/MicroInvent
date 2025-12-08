@@ -3,32 +3,33 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../api/axios';
 import { db } from '../db';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { processQueue } from '../services/syncQueue'; 
 
 export function useUserSync() {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const wasOfflineRef = useRef(navigator.onLine === false);
   const queryClient = useQueryClient();
 
-  // 1. Detectar Red + Procesar Cola
+  // 1. Detectar Red + Procesar Cola SOLO cuando vuelve online desde offline
   useEffect(() => {
-    const handleOnline = () => {
+    const handleOnline = async () => {
+      // Solo procesar si estábamos offline antes
+      if (wasOfflineRef.current) {
+        await processQueue(queryClient);
+      }
       setIsOnline(true);
-      // Procesar cola al volver la red
-      processQueue(queryClient).then(() => {
-        // Invalida la query de sync para forzar una bajada de datos frescos
-        queryClient.invalidateQueries(['syncUsers']); 
-      });
+      wasOfflineRef.current = false;
+      await queryClient.invalidateQueries({ queryKey: ['syncUsers'] });
     };
-    const handleOffline = () => setIsOnline(false);
+
+    const handleOffline = () => {
+      setIsOnline(false);
+      wasOfflineRef.current = true;
+    };
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
-
-    if (navigator.onLine) {
-        // Llama a processQueue si la app ya carga con internet (para pendientes)
-        processQueue(queryClient);
-    }
 
     return () => {
       window.removeEventListener('online', handleOnline);
@@ -74,6 +75,7 @@ export function useUserSync() {
     enabled: isOnline,
     refetchOnWindowFocus: true,
     staleTime: 1000 * 60,
+    retry: 1,
   });
 
   return {

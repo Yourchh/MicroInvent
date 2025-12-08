@@ -7,7 +7,7 @@ const User = {
     return rows[0];
   },
   
-  findById: async (id) => { // <--- NUEVO
+  findById: async (id) => {
     const { rows } = await pool.query('SELECT * FROM users WHERE id = $1', [id]);
     return rows[0];
   },
@@ -24,6 +24,49 @@ const User = {
     return rows;
   },
 
+  findByBranch: async (branchId) => {
+    // Obtener solo usuarios de una sucursal específica
+    const query = `
+      SELECT u.id, u.username, u.role, u.branch_id, b.name as branch_name, u.created_at
+      FROM users u
+      LEFT JOIN branches b ON u.branch_id = b.id
+      WHERE u.branch_id = $1
+      ORDER BY u.id ASC
+    `;
+    const { rows } = await pool.query(query, [branchId]);
+    return rows;
+  },
+
+  // --- VALIDACIONES DE ROL ---
+  isSuperAdmin: (user) => {
+    return user && user.role === 'superadmin';
+  },
+
+  isAdmin: (user) => {
+    return user && (user.role === 'admin' || user.role === 'superadmin');
+  },
+
+  isEmployee: (user) => {
+    return user && user.role === 'employee';
+  },
+
+  // Verifica si un admin tiene permiso sobre una sucursal específica
+  canManageBranch: (user, branchId) => {
+    if (!user) return false;
+    // Superadmin puede todo
+    if (user.role === 'superadmin') return true;
+    // Admin solo puede su sucursal asignada
+    if (user.role === 'admin') return user.branch_id === branchId;
+    return false;
+  },
+
+  // --- VALIDACIONES ---
+  branchExists: async (branchId) => {
+    if (!branchId) return true; // Si no hay branch_id, es válido (puede ser NULL)
+    const { rows } = await pool.query('SELECT id FROM branches WHERE id = $1', [branchId]);
+    return rows.length > 0;
+  },
+
   // --- CREAR ---
   create: async (username, passwordHash, role, branch_id) => {
     const query = `
@@ -35,7 +78,7 @@ const User = {
     return rows[0];
   },
 
-  // --- EDITAR (NUEVO: Permite cambiar todo) ---
+  // --- EDITAR ---
   update: async (id, username, passwordHash, role, branch_id) => {
     const query = `
       UPDATE users 
@@ -47,7 +90,6 @@ const User = {
     return rows[0];
   },
 
-  // --- MANTENER ESTE POR COMPATIBILIDAD (Opcional) ---
   updateRole: async (id, newRole) => {
     const query = 'UPDATE users SET role = $1 WHERE id = $2 RETURNING id';
     const { rows } = await pool.query(query, [newRole, id]);

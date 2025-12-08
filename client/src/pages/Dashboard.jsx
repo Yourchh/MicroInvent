@@ -1,8 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
-import { TrendingUp, AlertTriangle, Package, DollarSign } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { TrendingUp, AlertTriangle, Package, DollarSign, WifiOff, X, MapPin } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
+import { useState, useEffect } from 'react';
 
 // Componente reutilizable para las tarjetas de métricas
 // eslint-disable-next-line no-unused-vars
@@ -21,7 +22,37 @@ const StatCard = ({ title, value, icon: Icon, color, subtext }) => (
 
 export default function Dashboard() {
   const { user } = useAuth();
-  const branchId = user?.branch_id || 1;
+  const isSuperAdmin = user?.role === 'superadmin';
+  const [selectedBranch, setSelectedBranch] = useState(user?.branch_id || 1);
+  const branchId = selectedBranch;
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [showOfflineAlert, setShowOfflineAlert] = useState(true);
+
+  // Cargar sucursales para SuperAdmin
+  const { data: branches = [] } = useQuery({
+    queryKey: ['branches'],
+    queryFn: async () => {
+      try {
+        const response = await api.get('/branches');
+        return response.data;
+      } catch (err) {
+        console.warn('Error cargando sucursales:', err);
+        return [];
+      }
+    },
+    enabled: isSuperAdmin
+  });
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   // 1. Obtener datos de valor del inventario
   const { data: valueData, isLoading: loadingValue } = useQuery({
@@ -59,9 +90,43 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold text-slate-800">Dashboard</h2>
-        <p className="text-slate-500">Resumen general de tu sucursal</p>
+      {/* Alerta de Modo Offline */}
+      {!isOnline && showOfflineAlert && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-lg flex items-start gap-3">
+          <WifiOff size={20} className="flex-shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="font-semibold text-sm">Visualizando datos en caché</p>
+            <p className="text-sm">Las métricas mostradas pueden no estar actualizadas. Conecta a internet para ver datos en tiempo real.</p>
+          </div>
+          <button
+            onClick={() => setShowOfflineAlert(false)}
+            className="text-amber-400 hover:text-amber-600 flex-shrink-0 transition-colors"
+          >
+            <X size={18} />
+          </button>
+        </div>
+      )}
+
+      <div className="mb-6 flex justify-between items-end">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-800">Dashboard</h2>
+          <p className="text-slate-500">Resumen general de tu sucursal</p>
+        </div>
+        
+        {isSuperAdmin && branches.length > 0 && (
+          <div className="flex items-center gap-3 bg-surface p-3 rounded-lg border border-slate-200">
+            <MapPin size={18} className="text-primary" />
+            <select 
+              value={selectedBranch}
+              onChange={(e) => setSelectedBranch(Number(e.target.value))}
+              className="px-3 py-1 border border-slate-300 rounded-lg outline-none bg-white text-sm font-medium"
+            >
+              {branches.map(b => (
+                <option key={b.id} value={b.id}>{b.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       {/* Tarjetas de Métricas */}
@@ -96,20 +161,16 @@ export default function Dashboard() {
           <h3 className="font-bold text-slate-700">Top Productos por Stock</h3>
         </div>
         
-        <div className="h-64 w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} />
-              <YAxis axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} />
-              <Tooltip 
-                cursor={{fill: '#f8fafc'}}
-                contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}}
-              />
-              <Bar dataKey="stock" fill="#2563eb" radius={[4, 4, 0, 0]} barSize={40} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+        <BarChart width={800} height={256} data={chartData} margin={{ top: 0, right: 30, left: 0, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+          <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} />
+          <YAxis axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} />
+          <Tooltip 
+            cursor={{fill: '#f8fafc'}}
+            contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}}
+          />
+          <Bar dataKey="stock" fill="#2563eb" radius={[4, 4, 0, 0]} barSize={40} />
+        </BarChart>
       </div>
     </div>
   );
