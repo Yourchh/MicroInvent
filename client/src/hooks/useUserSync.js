@@ -12,22 +12,19 @@ export function useUserSync() {
 
   // 1. Detectar Red + Procesar Cola
   useEffect(() => {
-    const handleOnline = () => {
+    const handleOnline = async () => {
       setIsOnline(true);
-      // Procesar cola al volver la red
-      processQueue(queryClient).then(() => {
-        // Invalida la query de sync para forzar una bajada de datos frescos
-        queryClient.invalidateQueries(['syncUsers']); 
-      });
+      await processQueue(queryClient);
+      await queryClient.invalidateQueries({ queryKey: ['syncUsers'] });
     };
+
     const handleOffline = () => setIsOnline(false);
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
     if (navigator.onLine) {
-        // Llama a processQueue si la app ya carga con internet (para pendientes)
-        processQueue(queryClient);
+      handleOnline();
     }
 
     return () => {
@@ -74,6 +71,7 @@ export function useUserSync() {
     enabled: isOnline,
     refetchOnWindowFocus: true,
     staleTime: 1000 * 60,
+    retry: 1,
   });
 
   return {

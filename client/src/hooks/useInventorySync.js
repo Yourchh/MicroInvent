@@ -11,19 +11,19 @@ export function useInventorySync(branchId) {
 
   // 1. Detectar Red + Procesar Cola
   useEffect(() => {
-    const handleOnline = () => {
+    const handleOnline = async () => {
       setIsOnline(true);
-      processQueue(queryClient).then(() => {
-          queryClient.invalidateQueries(['syncInventory']); 
-      });
+      await processQueue(queryClient);
+      await queryClient.invalidateQueries({ queryKey: ['syncInventory'] });
     };
+
     const handleOffline = () => setIsOnline(false);
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
     if (navigator.onLine) {
-        processQueue(queryClient); 
+      handleOnline();
     }
 
     return () => {
@@ -74,6 +74,7 @@ export function useInventorySync(branchId) {
     enabled: isOnline && !!branchId,
     refetchOnWindowFocus: false, // Menos agresivo
     staleTime: 1000 * 60,
+    retry: 1,
   });
 
   return {

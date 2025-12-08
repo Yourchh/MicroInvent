@@ -64,7 +64,7 @@ export default function Users() {
 
   const handleSuccess = async (msg) => {
     closeModal(); 
-    await queryClient.invalidateQueries(['syncUsers']); 
+    await queryClient.invalidateQueries({ queryKey: ['syncUsers'] }); 
     if (isOnline) {
       alert(msg);
     }
@@ -111,7 +111,14 @@ export default function Users() {
             } else {
                 await db.users.add(localUser);
             }
-            await addToQueue(type, finalData, isEdit ? null : tempId);
+            if (isEdit && typeof editingUser.id === 'string') {
+              const existingCreate = await db.mutations.where('tempId').equals(editingUser.id).first();
+              if (existingCreate) {
+                await db.mutations.update(existingCreate.id, { payload: { ...existingCreate.payload, ...finalData } });
+              }
+            } else {
+              await addToQueue(type, finalData, isEdit ? null : tempId);
+            }
           });
       }
     },
@@ -142,7 +149,7 @@ export default function Users() {
     onSuccess: () => handleSuccess("Usuario eliminado."),
     onError: (err) => {
         if (err.message !== "Cancelado") alert(err.response?.data?.message || 'Error al eliminar');
-        queryClient.invalidateQueries(['syncUsers']); 
+      queryClient.invalidateQueries({ queryKey: ['syncUsers'] }); 
     }
   });
 

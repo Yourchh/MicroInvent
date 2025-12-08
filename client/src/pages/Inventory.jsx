@@ -47,7 +47,7 @@ export default function Inventory() {
   // --- HELPERS ---
   const handleSuccess = async (msg) => {
     closeModal(); 
-    await queryClient.invalidateQueries(['syncInventory']); 
+    await queryClient.invalidateQueries({ queryKey: ['syncInventory'] }); 
     if (isOnline) { 
         alert(msg);
     }
@@ -109,7 +109,15 @@ export default function Inventory() {
                     min_stock_alert: data.min_stock_alert
                 });
             }
-            await addToQueue('UPDATE', { ...data, id: idToUpdate });
+        // Si el ID es temporal, actualizamos la mutación de creación en vez de enviar un UPDATE inválido al backend
+        if (typeof idToUpdate === 'string') {
+          const existingCreate = await db.mutations.where('tempId').equals(idToUpdate).first();
+          if (existingCreate) {
+            await db.mutations.update(existingCreate.id, { payload: { ...existingCreate.payload, ...data } });
+          }
+        } else {
+          await addToQueue('UPDATE', { ...data, id: idToUpdate });
+        }
          });
       }
     },
