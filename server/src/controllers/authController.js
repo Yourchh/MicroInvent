@@ -83,7 +83,7 @@ exports.login = async (req, res) => {
       const tempToken = jwt.sign(
         { id: user.id, role: user.role, branch_id: user.branch_id, temp: true },
         process.env.JWT_SECRET,
-        { expiresIn: '15m' }
+        { expiresIn: '30m' }
       );
 
       console.log(`🔑 Admin/SuperAdmin ${username} requiere seleccionar sucursal`);

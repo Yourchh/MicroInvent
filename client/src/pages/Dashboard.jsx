@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
-import { TrendingUp, AlertTriangle, Package, DollarSign, WifiOff, X } from 'lucide-react';
+import { TrendingUp, AlertTriangle, Package, DollarSign, WifiOff, X, MapPin } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 import { useState, useEffect } from 'react';
 
@@ -22,9 +22,26 @@ const StatCard = ({ title, value, icon: Icon, color, subtext }) => (
 
 export default function Dashboard() {
   const { user } = useAuth();
-  const branchId = user?.branch_id || 1;
+  const isSuperAdmin = user?.role === 'superadmin';
+  const [selectedBranch, setSelectedBranch] = useState(user?.branch_id || 1);
+  const branchId = selectedBranch;
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [showOfflineAlert, setShowOfflineAlert] = useState(true);
+
+  // Cargar sucursales para SuperAdmin
+  const { data: branches = [] } = useQuery({
+    queryKey: ['branches'],
+    queryFn: async () => {
+      try {
+        const response = await api.get('/branches');
+        return response.data;
+      } catch (err) {
+        console.warn('Error cargando sucursales:', err);
+        return [];
+      }
+    },
+    enabled: isSuperAdmin
+  });
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -90,9 +107,26 @@ export default function Dashboard() {
         </div>
       )}
 
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold text-slate-800">Dashboard</h2>
-        <p className="text-slate-500">Resumen general de tu sucursal</p>
+      <div className="mb-6 flex justify-between items-end">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-800">Dashboard</h2>
+          <p className="text-slate-500">Resumen general de tu sucursal</p>
+        </div>
+        
+        {isSuperAdmin && branches.length > 0 && (
+          <div className="flex items-center gap-3 bg-surface p-3 rounded-lg border border-slate-200">
+            <MapPin size={18} className="text-primary" />
+            <select 
+              value={selectedBranch}
+              onChange={(e) => setSelectedBranch(Number(e.target.value))}
+              className="px-3 py-1 border border-slate-300 rounded-lg outline-none bg-white text-sm font-medium"
+            >
+              {branches.map(b => (
+                <option key={b.id} value={b.id}>{b.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       {/* Tarjetas de Métricas */}

@@ -211,6 +211,102 @@ El desarrollo se divide por dominios funcionales para mantener la independencia 
 
 ## 📱 Guía de Usuario
 
+### Instalación de la PWA en Chrome
+
+MicroInvent es una Aplicación Web Progresiva (PWA) que puede instalarse en tu dispositivo para funcionar como una aplicación nativa, incluso sin conexión a internet.
+
+#### Cómo Instalar en Chrome (Desktop)
+
+1. **Acceder a la aplicación:**
+   - Abre Google Chrome
+   - Navega a `http://localhost:5173` (desarrollo local)
+   
+2. **Instalar la aplicación:**
+   
+   Tienes dos opciones:
+   
+   **Opción A - Desde la barra de direcciones:**
+   - Busca el icono de instalación (➕ o 💻) en la esquina derecha de la barra de direcciones
+   - Haz clic en el icono
+   
+   **Opción B - Desde el menú:**
+   - Haz clic en el menú de Chrome (⋮) en la esquina superior derecha
+   - Selecciona **"Guardar y compartir"** → **"Instalar MicroInvent"**
+   
+   ![Instalar PWA Chrome](docs/screenshots/install-pwa-chrome.png)
+
+3. **Confirmar instalación:**
+   - Aparecerá un cuadro de diálogo de confirmación
+   - Haz clic en **"Instalar"**
+   - La aplicación se abrirá automáticamente en una ventana independiente
+
+4. **Acceso rápido:**
+   - MicroInvent aparecerá como aplicación en:
+     - Tu escritorio (si marcaste la opción)
+     - El menú de aplicaciones de tu sistema operativo
+     - La barra de tareas
+     - Chrome → Apps (chrome://apps/)
+   - Podrás iniciarla como cualquier aplicación de escritorio, sin necesidad de abrir el navegador
+
+#### Cómo Instalar en Chrome (Android)
+
+1. **Abrir en Chrome:**
+   - Abre Google Chrome en tu dispositivo Android
+   - Navega a la URL de la aplicación
+   
+2. **Instalar:**
+   - Aparecerá un banner en la parte inferior: **"Agregar MicroInvent a la pantalla de inicio"**
+   - Toca **"Instalar"** o **"Agregar"**
+   
+   Si no aparece el banner:
+   - Toca el menú (⋮) → **"Agregar a pantalla de inicio"** o **"Instalar aplicación"**
+   
+   ![Instalar PWA Android](docs/screenshots/install-pwa-android.png)
+
+3. **Usar la app:**
+   - El icono de MicroInvent aparecerá en tu pantalla de inicio
+   - Ábrela como cualquier otra aplicación
+   - Funcionará incluso sin conexión a internet
+
+#### Ventajas de Instalar la PWA
+
+✅ **Funciona sin internet** - Accede a tus datos y realiza cambios incluso offline  
+✅ **Experiencia nativa** - Se ejecuta en su propia ventana, sin barras del navegador  
+✅ **Sincronización automática** - Los cambios offline se sincronizan cuando recuperas conexión  
+✅ **Acceso rápido** - Lanza la app desde tu escritorio o pantalla de inicio en un clic  
+✅ **Almacenamiento local** - Tus datos se guardan en el dispositivo para acceso instantáneo  
+✅ **Actualizaciones automáticas** - La app se actualiza automáticamente cuando hay nuevas versiones
+
+#### Desinstalar la PWA
+
+**En Desktop:**
+
+- Abre la aplicación
+- Haz clic en el menú (⋮) → **"Desinstalar MicroInvent"**
+- O desde Chrome: chrome://apps/ → clic derecho en MicroInvent → **"Eliminar de Chrome"**
+
+**En Android:**
+
+- Mantén presionado el icono de la app
+- Selecciona **"Desinstalar"** o arrastra a la papelera
+
+### Inicio de Sesión
+
+El sistema cuenta con un flujo de autenticación de dos fases para administradores:
+
+![Pantalla de Inicio de Sesión](docs/screenshots/login.png)
+
+1. **Selección de Tipo de Usuario:**
+   - Empleado: Acceso directo
+   - Administrador: Requiere selección de sucursal
+
+2. **Credenciales:**
+   - Ingresa tu usuario y contraseña
+   - Los empleados acceden directamente a su dashboard
+   - Los administradores deben seleccionar su sucursal
+
+![Selección de Sucursal](docs/screenshots/branch-selection.png)
+
 ### Roles y Permisos
 
 MicroInvent implementa un sistema de roles jerárquico con permisos específicos:
@@ -259,6 +355,8 @@ MicroInvent implementa un sistema de roles jerárquico con permisos específicos
 
 #### 📊 Dashboard
 
+![Dashboard Principal](docs/screenshots/dashboard.png)
+
 **Todos los roles:**
 
 - Visualización de métricas clave:
@@ -268,7 +366,16 @@ MicroInvent implementa un sistema de roles jerárquico con permisos específicos
 - Gráfico de productos por stock
 - Filtrado por sucursal (solo SuperAdmin)
 
+**Vista SuperAdmin:**
+
+![Dashboard SuperAdmin](docs/screenshots/dashboard-superadmin.png)
+
+- Selector de sucursal en la parte superior
+- Puede cambiar entre todas las sucursales para ver sus métricas
+
 #### 📦 Inventario
+
+![Inventario](docs/screenshots/inventory.png)
 
 **SuperAdmin:**
 
@@ -278,12 +385,16 @@ MicroInvent implementa un sistema de roles jerárquico con permisos específicos
 - Eliminar productos
 - Ver stock en tiempo real
 
+![Agregar Producto](docs/screenshots/add-product.png)
+
 **Admin y Employee:**
 
 - Vista fija de su sucursal
 - Mismas funciones de gestión de productos
 
 #### 👥 Usuarios (Solo Admin y SuperAdmin)
+
+![Gestión de Usuarios](docs/screenshots/users.png)
 
 **SuperAdmin:**
 
@@ -293,6 +404,8 @@ MicroInvent implementa un sistema de roles jerárquico con permisos específicos
 - Editar cualquier usuario
 - Eliminar usuarios
 
+![Crear Usuario SuperAdmin](docs/screenshots/create-user-superadmin.png)
+
 **Admin:**
 
 - Ver solo empleados de su sucursal
@@ -300,7 +413,11 @@ MicroInvent implementa un sistema de roles jerárquico con permisos específicos
 - Editar solo empleados de su sucursal
 - No puede cambiar roles ni sucursales
 
+![Vista Admin de Usuarios](docs/screenshots/users-admin.png)
+
 #### ⚙️ Configuración (Solo Admin y SuperAdmin)
+
+![Configuración SuperAdmin](docs/screenshots/settings-superadmin.png)
 
 **SuperAdmin:**
 
@@ -311,7 +428,11 @@ MicroInvent implementa un sistema de roles jerárquico con permisos específicos
   - Resetear sistema completo (elimina todos los datos)
   - Confirmación requerida
 
+![Crear Sucursal](docs/screenshots/create-branch.png)
+
 **Admin:**
+
+![Configuración Admin](docs/screenshots/settings-admin.png)
 
 - Ver lista de sucursales (solo lectura)
 - Mensaje: "Solo consulta - Contacta al SuperAdmin para cambios"
@@ -346,6 +467,8 @@ MicroInvent implementa un sistema de roles jerárquico con permisos específicos
 
 MicroInvent funciona sin conexión a internet gracias a su arquitectura PWA:
 
+![Modo Offline](docs/screenshots/offline-mode.png)
+
 1. **Almacenamiento Local:** Los datos se guardan en IndexedDB
 2. **Cola de Sincronización:** Las acciones offline se encolan
 3. **Sincronización Automática:** Al recuperar conexión, los cambios se sincronizan automáticamente
@@ -353,6 +476,15 @@ MicroInvent funciona sin conexión a internet gracias a su arquitectura PWA:
    - 🟢 Online: Sincronización en tiempo real
    - 🔴 Offline: Modo local, cambios en cola
    - 🟠 Pendiente: Acciones esperando sincronización
+
+![Indicador de Sincronización](docs/screenshots/sync-indicator.png)
+
+**Acciones soportadas en modo offline:**
+
+- Crear, editar y eliminar productos
+- Crear, editar y eliminar usuarios
+- Visualizar inventario
+- Ver dashboard y métricas
 
 ---
 
