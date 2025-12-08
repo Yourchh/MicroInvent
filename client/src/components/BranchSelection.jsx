@@ -41,6 +41,7 @@ export default function BranchSelection({ tempToken, onBranchSelected }) {
     },
     onSuccess: (data) => {
       console.log('✅ Sucursal seleccionada:', data);
+      setErrorMsg(''); // Limpiar error
       // Guardar token y datos del usuario
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
@@ -48,8 +49,18 @@ export default function BranchSelection({ tempToken, onBranchSelected }) {
       onBranchSelected(data);
     },
     onError: (err) => {
-      const msg = err.response?.data?.message || err.message || 'Error desconocido';
+      console.error('❌ Error al seleccionar sucursal:', err);
+      let msg = 'Error al seleccionar sucursal';
+      
+      if (err.response?.data?.message) {
+        msg = err.response.data.message;
+      } else if (err.message) {
+        msg = err.message;
+      }
+      
       setErrorMsg(msg);
+      // Limpiar contraseña para reintentar
+      setAdminPassword('');
     }
   });
 
@@ -85,9 +96,12 @@ export default function BranchSelection({ tempToken, onBranchSelected }) {
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {errorMsg && (
-            <div className="bg-red-50 text-red-600 p-3 rounded-lg border border-red-100 flex items-center gap-2 text-sm">
-              <AlertCircle size={16} />
-              {errorMsg}
+            <div className="bg-red-50 text-red-700 p-4 rounded-lg border-2 border-red-200 flex items-start gap-3 animate-pulse">
+              <AlertCircle size={20} className="flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="font-semibold text-sm mb-1">Error de Validación</p>
+                <p className="text-sm">{errorMsg}</p>
+              </div>
             </div>
           )}
 
@@ -98,7 +112,10 @@ export default function BranchSelection({ tempToken, onBranchSelected }) {
             </label>
             <select
               value={selectedBranch}
-              onChange={(e) => setSelectedBranch(e.target.value)}
+              onChange={(e) => {
+                setSelectedBranch(e.target.value);
+                setErrorMsg(''); // Limpiar error al cambiar sucursal
+              }}
               className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white"
             >
               <option value="">Selecciona una sucursal</option>
