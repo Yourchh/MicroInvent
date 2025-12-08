@@ -152,13 +152,14 @@ exports.updateUser = async (req, res) => {
         return res.status(403).json({ message: 'Solo puedes editar usuarios de tu sucursal' });
       }
       
-      // Admin solo puede editar empleados y gerentes, no puede cambiar roles ni sucursal
+      // Admin solo puede editar empleados y gerentes
       if (!['employee', 'manager'].includes(targetUser.role)) {
         return res.status(403).json({ message: 'Solo puedes editar empleados y gerentes' });
       }
       
-      if (role && role !== targetUser.role) {
-        return res.status(403).json({ message: 'No puedes cambiar el rol de un usuario' });
+      // Admin SÍ puede cambiar entre employee y manager, pero no a otros roles
+      if (role && !['employee', 'manager'].includes(role)) {
+        return res.status(403).json({ message: 'Solo puedes cambiar entre empleado y gerente' });
       }
       
       if (branch_id && branch_id !== editorUser.branch_id) {
