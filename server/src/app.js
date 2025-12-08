@@ -11,6 +11,8 @@ const reportRoutes = require('./routes/reportRoutes');
 const userRoutes = require('./routes/userRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const branchRoutes = require('./routes/branchRoutes');
+const movementRoutes = require('./routes/movementRoutes');
+const transferRoutes = require('./routes/transferRoutes');
 
 // 2. INICIALIZAR LA APP (¡Esta línea debe ir antes de los app.use!)
 const app = express(); 
@@ -28,6 +30,8 @@ app.use('/api/inventory', inventoryRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/branches', branchRoutes);
+app.use('/api/movements', movementRoutes);
+app.use('/api/transfers', transferRoutes);
 // Ruta base de prueba
 app.get('/', (req, res) => res.send('API MicroInvent Funcionando 🚀'));
 

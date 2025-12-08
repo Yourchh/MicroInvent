@@ -3,6 +3,24 @@ const Product = require('../models/productModel'); //
 
 exports.getAllProducts = async (req, res) => {
   try {
+    const { branch_id } = req.query;
+    
+    if (branch_id) {
+      // Obtener productos con stock de una sucursal específica
+      const query = `
+        SELECT 
+          p.id, p.sku, p.name, p.price, p.min_stock_alert,
+          COALESCE(i.quantity, 0) as quantity,
+          COALESCE(i.version, 1) as version
+        FROM products p
+        LEFT JOIN inventory i ON p.id = i.product_id AND i.branch_id = $1
+        ORDER BY p.name ASC
+      `;
+      const { rows } = await pool.query(query, [branch_id]);
+      return res.json(rows);
+    }
+
+    // Sin branch_id, obtener todos los productos
     const products = await Product.findAll();
     res.json(products);
   } catch (err) {

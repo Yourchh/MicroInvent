@@ -1,6 +1,6 @@
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { LayoutDashboard, Package, FileText, LogOut, Users } from 'lucide-react';
+import { LayoutDashboard, Package, FileText, LogOut, Users, TrendingUp, ArrowRight } from 'lucide-react';
 import { Settings as SettingsIcon } from 'lucide-react';
 import OfflineAlert from './OfflineAlert';
 import OfflineBlocker from './OfflineBlocker';
@@ -64,6 +64,8 @@ export default function Layout() {
         <nav className="flex-1 space-y-2">
           <NavItem to="/dashboard" icon={LayoutDashboard} label="Dashboard" />
           <NavItem to="/dashboard/inventory" icon={Package} label="Inventario" />
+          <NavItem to="/dashboard/movements" icon={TrendingUp} label="Movimientos" />
+          <NavItem to="/dashboard/transfers" icon={ArrowRight} label="Transferencias" />
           {canViewReports && (<NavItem to="/dashboard/reports" icon={FileText} label="Reportes" />)}
           {isAdmin && (
             <>
