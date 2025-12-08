@@ -11,6 +11,9 @@ import { addToQueue } from '../services/syncQueue';
 export default function Inventory() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  
+  // Solo superadmin puede cambiar de sucursal, los demás están fijos en su sucursal
+  const isSuperAdmin = user?.role === 'superadmin';
   const [selectedBranchId, setSelectedBranchId] = useState(user?.branch_id || 1);
 
   // 1. QUERY DE SUCURSALES - Con caché offline
@@ -263,16 +266,25 @@ export default function Inventory() {
 
       {/* Filtro de sucursal */}
       <div className="flex gap-4 items-center">
-        <label className="text-sm font-medium text-slate-700">Sucursal:</label>
-        <select 
-          value={selectedBranchId} 
-          onChange={(e) => setSelectedBranchId(Number(e.target.value))}
-          className="px-3 py-2 border border-slate-300 rounded-lg outline-none"
-        >
-          {branches.map(b => (
-            <option key={b.id} value={b.id}>{b.name}</option>
-          ))}
-        </select>
+        <label className="text-sm font-medium text-slate-700 flex items-center gap-2">
+          <MapPin size={16} />
+          Sucursal:
+        </label>
+        {isSuperAdmin ? (
+          <select 
+            value={selectedBranchId} 
+            onChange={(e) => setSelectedBranchId(Number(e.target.value))}
+            className="px-3 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            {branches.map(b => (
+              <option key={b.id} value={b.id}>{b.name}</option>
+            ))}
+          </select>
+        ) : (
+          <div className="px-4 py-2 bg-slate-100 border border-slate-200 rounded-lg text-slate-700 font-medium">
+            {branches.find(b => b.id === selectedBranchId)?.name || 'Cargando...'}
+          </div>
+        )}
       </div>
 
       {errorMsg && (
