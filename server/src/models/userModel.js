@@ -24,6 +24,19 @@ const User = {
     return rows;
   },
 
+  findByBranch: async (branchId) => {
+    // Obtener solo usuarios de una sucursal específica
+    const query = `
+      SELECT u.id, u.username, u.role, u.branch_id, b.name as branch_name, u.created_at
+      FROM users u
+      LEFT JOIN branches b ON u.branch_id = b.id
+      WHERE u.branch_id = $1
+      ORDER BY u.id ASC
+    `;
+    const { rows } = await pool.query(query, [branchId]);
+    return rows;
+  },
+
   // --- VALIDACIONES DE ROL ---
   isSuperAdmin: (user) => {
     return user && user.role === 'superadmin';
