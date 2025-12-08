@@ -46,16 +46,6 @@ exports.login = async (req, res) => {
         return res.status(400).json({ message: 'Empleado sin sucursal asignada. Contacte al administrador.' });
       }
 
-      // Verificar si sucursal ya tiene sesión activa
-      const activeSession = await Session.isActiveInBranch(user.branch_id, 30);
-      if (activeSession && activeSession.user_id !== user.id) {
-        const branch = await Branch.findById(user.branch_id);
-        return res.status(409).json({ 
-          message: `La sucursal "${branch.name}" ya tiene una sesión activa del usuario "${activeSession.username}".`,
-          activeUser: activeSession.username
-        });
-      }
-
       // Obtener nombre de sucursal
       const branch = await Branch.findById(user.branch_id);
 
@@ -147,20 +137,7 @@ exports.selectBranch = async (req, res) => {
       return res.status(403).json({ message: 'No tienes permisos para seleccionar sucursal' });
     }
 
-    console.log(`✅ Permisos validados. Verificando sesión activa en sucursal ${branch_id}`);
-
-    // Verificar si ya existe una sesión activa en esta sucursal (últimos 30 minutos)
-    const activeSession = await Session.isActiveInBranch(branch_id, 30);
-    
-    if (activeSession && activeSession.user_id !== userId) {
-      console.log(`❌ Sucursal ${branch_id} ya tiene sesión activa del usuario ${activeSession.username}`);
-      return res.status(409).json({ 
-        message: `La sucursal "${branch.name}" ya tiene una sesión activa del usuario "${activeSession.username}". Solo puede haber una sesión activa por sucursal.`,
-        activeUser: activeSession.username
-      });
-    }
-
-    console.log(`✅ Sucursal disponible. Creando sesión para usuario ${userId} en sucursal ${branch_id}`);
+    console.log(`✅ Permisos validados. Creando sesión para usuario ${userId} en sucursal ${branch_id}`);
 
     // Generar token definitivo con branch_id
     const token = jwt.sign(
