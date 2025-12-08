@@ -33,10 +33,10 @@ export default function Movements() {
     queryKey: ['movements', user?.branch_id, filterType],
     queryFn: async () => {
       if (filterType) {
-        const response = await api.get(`/api/movements/type/${filterType}`);
+        const response = await api.get(`/movements/type/${filterType}`);
         return response.data;
       }
-      const response = await api.get('/api/movements');
+      const response = await api.get('/movements');
       return response.data;
     }
   });
@@ -44,7 +44,7 @@ export default function Movements() {
   // Mutación para crear movimiento
   const createMutation = useMutation({
     mutationFn: async (data) => {
-      return await api.post('/api/movements', data);
+      return await api.post('/movements', data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['movements'] });

@@ -40,10 +40,10 @@ export default function Transfers() {
     queryKey: ['transfers', filterStatus],
     queryFn: async () => {
       if (filterStatus === 'pending') {
-        const response = await api.get('/api/transfers/pending');
+        const response = await api.get('/transfers/pending');
         return response.data;
       }
-      const response = await api.get('/api/transfers');
+      const response = await api.get('/transfers');
       return response.data;
     }
   });
@@ -51,7 +51,7 @@ export default function Transfers() {
   // Crear transferencia
   const createMutation = useMutation({
     mutationFn: async (data) => {
-      return await api.post('/api/transfers', data);
+      return await api.post('/transfers', data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['transfers'] });
@@ -68,7 +68,7 @@ export default function Transfers() {
   // Aprobar transferencia
   const approveMutation = useMutation({
     mutationFn: async (transferId) => {
-      return await api.put(`/api/transfers/${transferId}/approve`, {});
+      return await api.put(`/transfers/${transferId}/approve`, {});
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['transfers'] });
@@ -83,7 +83,7 @@ export default function Transfers() {
   // Completar transferencia
   const completeMutation = useMutation({
     mutationFn: async (transferId) => {
-      return await api.put(`/api/transfers/${transferId}/complete`, {});
+      return await api.put(`/transfers/${transferId}/complete`, {});
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['transfers'] });
@@ -98,7 +98,7 @@ export default function Transfers() {
   // Cancelar transferencia
   const cancelMutation = useMutation({
     mutationFn: async (transferId) => {
-      return await api.put(`/api/transfers/${transferId}/cancel`, {});
+      return await api.put(`/transfers/${transferId}/cancel`, {});
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['transfers'] });
