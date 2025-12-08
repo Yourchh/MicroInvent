@@ -99,6 +99,11 @@ exports.deleteBranch = async (req, res) => {
       return res.status(403).json({ message: 'Solo administradores pueden eliminar sucursales' });
     }
 
+    // No permitir eliminar la sucursal matriz (id = 1)
+    if (parseInt(id) === 1) {
+      return res.status(400).json({ message: 'No se puede eliminar la sucursal matriz' });
+    }
+
     const existing = await Branch.findById(id);
     if (!existing) {
       return res.status(404).json({ message: 'Sucursal no encontrada' });
