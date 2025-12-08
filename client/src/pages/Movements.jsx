@@ -23,7 +23,7 @@ export default function Movements() {
   const { data: products = [] } = useQuery({
     queryKey: ['products', user?.branch_id],
     queryFn: async () => {
-      const response = await api.get(`/api/products?branch_id=${user?.branch_id}`);
+      const response = await api.get(`/products?branch_id=${user?.branch_id}`);
       return response.data;
     }
   });

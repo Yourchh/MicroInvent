@@ -12,13 +12,22 @@ export default function BranchSelection({ tempToken, userData, onBranchSelected 
   const assignedBranchId = userData?.assigned_branch_id;
 
   // Cargar sucursales públicamente
-  const { data: allBranches = [], isLoading } = useQuery({
+  const { data: allBranches = [], isLoading, error: branchesError } = useQuery({
     queryKey: ['branches-public'],
     queryFn: async () => {
-      const response = await api.get('/api/branches');
+      console.log('📍 Cargando sucursales...');
+      const response = await api.get('/branches');
+      console.log('✅ Sucursales cargadas:', response.data);
       return Array.isArray(response.data) ? response.data : [];
     },
+    retry: 3,
+    retryDelay: 1000,
   });
+
+  // Mostrar error si hay
+  if (branchesError) {
+    console.error('❌ Error al cargar sucursales:', branchesError);
+  }
 
   // Filtrar sucursales según el rol
   const branches = isSuperAdmin 
@@ -92,12 +101,12 @@ export default function BranchSelection({ tempToken, userData, onBranchSelected 
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {errorMsg && (
+          {(errorMsg || branchesError) && (
             <div className="bg-red-50 text-red-700 p-4 rounded-lg border-2 border-red-200 flex items-start gap-3 animate-pulse">
               <AlertCircle size={20} className="flex-shrink-0 mt-0.5" />
               <div className="flex-1">
                 <p className="font-semibold text-sm mb-1">Error de Validación</p>
-                <p className="text-sm">{errorMsg}</p>
+                <p className="text-sm">{errorMsg || (branchesError?.message ? `No se pudieron cargar las sucursales: ${branchesError.message}` : 'Error al cargar sucursales')}</p>
               </div>
             </div>
           )}
