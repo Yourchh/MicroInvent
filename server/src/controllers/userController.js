@@ -15,11 +15,48 @@ exports.createUser = async (req, res) => {
   try {
     console.log('📥 Recibiendo petición CREATE USER:', req.body);
     const { username, password, role, branch_id } = req.body;
+    const creatorUser = req.user; // Usuario que está creando (de authMiddleware)
 
     // Validación básica
     if (!username || !password || !role) {
       console.log('❌ Validación fallida - Datos:', { username, password: password ? 'EXISTS' : 'MISSING', role, branch_id });
       return res.status(400).json({ message: 'Faltan datos obligatorios' });
+    }
+
+    // VALIDACIONES DE PERMISOS SEGÚN ROL
+    if (creatorUser.role === 'employee') {
+      // Empleados NO pueden crear usuarios
+      return res.status(403).json({ message: 'Los empleados no tienen permiso para crear usuarios' });
+    }
+
+    if (creatorUser.role === 'admin') {
+      // Admin solo puede crear empleados de su sucursal
+      if (role !== 'employee') {
+        return res.status(403).json({ message: 'Como admin, solo puedes crear empleados. Para crear admins contacta al superadmin.' });
+      }
+      
+      if (!branch_id) {
+        return res.status(400).json({ message: 'Los empleados deben tener una sucursal asignada' });
+      }
+      
+      if (branch_id !== creatorUser.branch_id) {
+        return res.status(403).json({ message: 'Como admin, solo puedes crear empleados de tu sucursal asignada' });
+      }
+    }
+
+    if (creatorUser.role === 'superadmin') {
+      // SuperAdmin puede crear todo pero con validaciones
+      if (role === 'admin' && !branch_id) {
+        return res.status(400).json({ message: 'Los administradores deben tener una sucursal asignada' });
+      }
+      
+      if (role === 'employee' && !branch_id) {
+        return res.status(400).json({ message: 'Los empleados deben tener una sucursal asignada' });
+      }
+
+      if (role === 'superadmin' && branch_id) {
+        return res.status(400).json({ message: 'Los superadmins no deben tener sucursal asignada' });
+      }
     }
 
     // Validar que branch_id existe
@@ -41,7 +78,7 @@ exports.createUser = async (req, res) => {
     const hash = await bcrypt.hash(password, salt);
 
     const newUser = await User.create(username, hash, role, branch_id);
-    console.log('✅ Usuario creado exitosamente:', newUser);
+    console.log(`✅ Usuario creado por ${creatorUser.role} ${creatorUser.username}:`, newUser);
     res.status(201).json(newUser);
   } catch (err) {
     console.error('❌ Error en createUser:', err);

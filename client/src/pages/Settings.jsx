@@ -93,8 +93,8 @@ export default function Settings() {
     createBranchMutation.mutate();
   };
 
-  // Solo administradores pueden crear sucursales
-  if (user?.role !== 'admin') {
+  // Solo administradores y superadmins pueden acceder
+  if (user?.role === 'employee') {
     return (
       <div className="space-y-8 max-w-4xl mx-auto">
         <div>
@@ -108,11 +108,15 @@ export default function Settings() {
     );
   }
 
+  const isSuperAdmin = user?.role === 'superadmin';
+
   return (
     <div className="space-y-8 max-w-4xl mx-auto">
       <div>
         <h2 className="text-2xl font-bold text-slate-800">Configuración del Sistema</h2>
-        <p className="text-slate-500">Opciones avanzadas de administración</p>
+        <p className="text-slate-500">
+          {isSuperAdmin ? 'SuperAdmin - Acceso Total' : 'Panel de Administrador'}
+        </p>
       </div>
 
       {successMsg && (

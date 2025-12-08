@@ -9,7 +9,7 @@ ALTER TABLE users ALTER COLUMN branch_id DROP NOT NULL;
 
 -- 3. Crear superadmin (password: super123)
 INSERT INTO users (username, password_hash, role, branch_id)
-VALUES ('superadmin', '$2a$10$XvZ0pQYX9YoF8Gv4gH8.ZOvBkN5KvPxJ0yJ5HxZkQvXJ0.5kN5KvP', 'superadmin', NULL)
+VALUES ('superadmin', '$2b$10$zp26ZtrroI56ZLoUzbuTdO8ovrTmIuCTyPVR/K9BvwTE68pX2MA2e', 'superadmin', NULL)
 ON CONFLICT (username) DO NOTHING;
 
 -- 4. Actualizar usuario 'admin' existente para que sea admin de Matriz (branch_id = 1)
