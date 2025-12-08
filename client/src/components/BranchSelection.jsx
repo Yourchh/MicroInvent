@@ -15,7 +15,7 @@ export default function BranchSelection({ tempToken, userData, onBranchSelected 
   const { data: allBranches = [], isLoading } = useQuery({
     queryKey: ['branches-public'],
     queryFn: async () => {
-      const response = await api.get('/branches/public');
+      const response = await api.get('/api/branches');
       return Array.isArray(response.data) ? response.data : [];
     },
   });
