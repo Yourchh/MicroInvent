@@ -32,8 +32,8 @@ exports.createBranch = async (req, res) => {
     console.log('📥 Recibiendo petición CREATE BRANCH:', req.body);
     const { name, address } = req.body;
 
-    // Validar que el usuario es admin
-    if (req.user.role !== 'admin') {
+    // Validar que el usuario es admin o superadmin
+    if (!['admin', 'superadmin'].includes(req.user.role)) {
       return res.status(403).json({ message: 'Solo administradores pueden crear sucursales' });
     }
 
@@ -64,8 +64,8 @@ exports.updateBranch = async (req, res) => {
     const { id } = req.params;
     const { name, address } = req.body;
 
-    // Validar que el usuario es admin
-    if (req.user.role !== 'admin') {
+    // Validar que el usuario es admin o superadmin
+    if (!['admin', 'superadmin'].includes(req.user.role)) {
       return res.status(403).json({ message: 'Solo administradores pueden editar sucursales' });
     }
 
@@ -94,8 +94,8 @@ exports.deleteBranch = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Validar que el usuario es admin
-    if (req.user.role !== 'admin') {
+    // Validar que el usuario es admin o superadmin
+    if (!['admin', 'superadmin'].includes(req.user.role)) {
       return res.status(403).json({ message: 'Solo administradores pueden eliminar sucursales' });
     }
 
