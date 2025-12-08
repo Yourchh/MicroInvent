@@ -2,8 +2,7 @@ import { useState } from 'react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
-// 1. CAMBIO: Reemplazamos 'Edit' por 'Pencil' en los imports
-import { Users as UsersIcon, Trash2, Pencil, Plus, X, Save, User, Shield, Wifi, WifiOff, Clock, CheckCircle2 } from 'lucide-react';
+import { Users as UsersIcon, Trash2, Pencil, Plus, X, Save, User, Shield, Wifi, WifiOff, Clock, CheckCircle2, Zap } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -63,16 +62,38 @@ export default function Users() {
   };
 
   const handleSuccess = async (msg) => {
-    closeModal(); 
-    await queryClient.invalidateQueries({ queryKey: ['syncUsers'] }); 
+    closeModal();
+    // Invalidar en background sin esperar (no bloquea el cierre del modal)
+    queryClient.invalidateQueries({ queryKey: ['syncUsers'] }).catch(console.error);
     if (isOnline) {
       alert(msg);
     }
   };
 
   const handleError = (err) => {
-    console.error(err);
+    console.error('❌ Error en operación:', err);
     setErrorMsg(err.response?.data?.message || err.message || 'Error en la operación');
+  };
+
+  // Función para limpiar mutaciones inválidas
+  const cleanInvalidMutations = async () => {
+    try {
+      const mutations = await db.mutations.toArray();
+      const invalid = mutations.filter(m => m.type === 'CREATE_USER' && !m.payload.password);
+      
+      if (invalid.length > 0) {
+        const ids = invalid.map(m => m.id);
+        await db.mutations.bulkDelete(ids);
+        console.log('✅ Eliminadas', ids.length, 'mutaciones inválidas');
+        alert(`✅ Eliminadas ${ids.length} mutaciones inválidas que causaban errores de sincronización`);
+        window.location.reload();
+      } else {
+        alert('✅ No hay mutaciones inválidas');
+      }
+    } catch (err) {
+      console.error('Error limpiando mutaciones:', err);
+      alert('Error al limpiar mutaciones');
+    }
   };
 
   // 2. Mutación: Guardar
@@ -82,44 +103,50 @@ export default function Users() {
       const type = isEdit ? 'UPDATE_USER' : 'CREATE_USER';
       
       if (isOnline) {
-          if (isEdit) {
-              await api.put(`/users/${editingUser.id}`, data);
-          } else {
-              await api.post('/users', data);
-          }
+        if (isEdit) {
+          await api.put(`/users/${editingUser.id}`, data);
+        } else {
+          await api.post('/users', data);
+        }
       } else {
-          if (!isEdit && !data.password) {
-             throw new Error("La contraseña es obligatoria en modo offline para crear.");
+        if (!isEdit && !data.password) {
+          throw new Error("La contraseña es obligatoria en modo offline para crear.");
+        }
+        
+        const tempId = isEdit ? editingUser.id : `user_temp_${Date.now()}`;
+        const finalData = isEdit ? { ...data, id: editingUser.id } : data;
+        
+        try {
+          const localUser = {
+            ...finalData,
+            id: tempId,
+            created_at: new Date(),
+            username: finalData.username, 
+            role: finalData.role,
+            branch_id: finalData.branch_id,
+            temp: !isEdit 
+          };
+
+          // Guardar en users primero
+          if (isEdit) {
+            await db.users.update(editingUser.id, localUser);
+          } else {
+            await db.users.add(localUser);
           }
           
-          const tempId = isEdit ? editingUser.id : `user_temp_${Date.now()}`;
-          const finalData = isEdit ? { ...data, id: editingUser.id } : data;
-          
-          return db.transaction('rw', db.users, db.mutations, async () => {
-            const localUser = {
-                ...finalData,
-                id: tempId,
-                created_at: new Date(),
-                username: finalData.username, 
-                role: finalData.role,
-                branch_id: finalData.branch_id,
-                temp: !isEdit 
-            };
-
-            if (isEdit) {
-                await db.users.update(editingUser.id, localUser);
-            } else {
-                await db.users.add(localUser);
+          // Luego agregar a mutations (sin transacción anidada)
+          if (isEdit && typeof editingUser.id === 'string') {
+            const existingCreate = await db.mutations.where('tempId').equals(editingUser.id).first();
+            if (existingCreate) {
+              await db.mutations.update(existingCreate.id, { payload: { ...existingCreate.payload, ...finalData } });
             }
-            if (isEdit && typeof editingUser.id === 'string') {
-              const existingCreate = await db.mutations.where('tempId').equals(editingUser.id).first();
-              if (existingCreate) {
-                await db.mutations.update(existingCreate.id, { payload: { ...existingCreate.payload, ...finalData } });
-              }
-            } else {
-              await addToQueue(type, finalData, isEdit ? null : tempId);
-            }
-          });
+          } else {
+            await addToQueue(type, finalData, isEdit ? null : tempId);
+          }
+        } catch (err) {
+          console.error('❌ Error en saveMutation offline:', err);
+          throw err;
+        }
       }
     },
     onSuccess: () => handleSuccess(isOnline ? "Usuario guardado." : "Guardado sin conexión. Se subirá al volver internet."),
@@ -131,24 +158,27 @@ export default function Users() {
     mutationFn: async (id) => {
       if (!confirm('¿Eliminar usuario permanentemente?')) throw new Error("Cancelado");
       
-      await db.users.delete(id);
+      try {
+        await db.users.delete(id);
 
-      if (isOnline) {
+        if (isOnline) {
           await api.delete(`/users/${id}`);
-      } else {
-          return db.transaction('rw', db.mutations, async () => {
-            if (typeof id === 'number') {
-                await addToQueue('DELETE_USER', { id });
-            } else {
-                const createAction = await db.mutations.where('tempId').equals(id).first();
-                if (createAction) await db.mutations.delete(createAction.id);
-            }
-          });
+        } else {
+          if (typeof id === 'number') {
+            await addToQueue('DELETE_USER', { id });
+          } else {
+            const createAction = await db.mutations.where('tempId').equals(id).first();
+            if (createAction) await db.mutations.delete(createAction.id);
+          }
+        }
+      } catch (err) {
+        console.error('❌ Error en deleteMutation offline:', err);
+        throw err;
       }
     },
     onSuccess: () => handleSuccess("Usuario eliminado."),
     onError: (err) => {
-        if (err.message !== "Cancelado") alert(err.response?.data?.message || 'Error al eliminar');
+      if (err.message !== "Cancelado") alert(err.response?.data?.message || 'Error al eliminar');
       queryClient.invalidateQueries({ queryKey: ['syncUsers'] }); 
     }
   });
@@ -197,9 +227,14 @@ export default function Users() {
           <h2 className="text-2xl font-bold text-slate-800">Usuarios</h2>
           <p className="text-slate-500">Gestión de personal y accesos</p>
         </div>
-        <Button onClick={openCreate}>
-          <Plus size={18} /> Nuevo Usuario
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={cleanInvalidMutations} variant="outline" title="Limpiar mutaciones inválidas de la cola de sincronización">
+            <Zap size={18} /> Limpiar Cola
+          </Button>
+          <Button onClick={openCreate}>
+            <Plus size={18} /> Nuevo Usuario
+          </Button>
+        </div>
       </div>
 
       {errorMsg && (
@@ -245,7 +280,6 @@ export default function Users() {
                 <td className="px-6 py-4 text-center">
                     {getSyncStatus(u)}
                 </td>
-                {/* 2. CAMBIO: Botones actualizados con estilo y componente idéntico a Inventory.jsx */}
                 <td className="px-6 py-4 text-center flex justify-center gap-2">
                   <button 
                     onClick={() => openEdit(u)}
@@ -267,7 +301,7 @@ export default function Users() {
         </table>
       </div>
 
-      {/* MODAL (Sin cambios funcionales, solo estilo visual) */}
+      {/* MODAL */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">

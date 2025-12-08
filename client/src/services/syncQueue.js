@@ -47,6 +47,17 @@ export const processQueue = async (queryClient) => {
   processing = true;
 
   try {
+    // PRIMERO: Limpiar mutaciones inválidas (CREATE_USER sin password)
+    const allMutations = await db.mutations.toArray();
+    const invalidMutations = allMutations
+      .filter(m => m.type === 'CREATE_USER' && !m.payload.password)
+      .map(m => m.id);
+    
+    if (invalidMutations.length > 0) {
+      console.warn(`⚠️ Eliminando ${invalidMutations.length} mutaciones CREATE_USER inválidas (sin password)`);
+      await db.mutations.bulkDelete(invalidMutations);
+    }
+
     const pendingActions = await db.mutations.orderBy('timestamp').toArray();
     if (pendingActions.length === 0) return;
 
@@ -72,9 +83,14 @@ export const processQueue = async (queryClient) => {
         }
 
         else if (action.type === 'CREATE_USER') {
-          const { data } = await api.post('/users', action.payload);
-          await replaceUserTempId(action, data);
-          invalidate(queryClient, 'syncUsers');
+          // Esta validación es redundante ahora porque ya limpiamos arriba, pero la dejamos por seguridad
+          if (!action.payload.username || !action.payload.password) {
+            console.warn('⚠️ CREATE_USER sin username o password (debería haber sido eliminado)');
+          } else {
+            const { data } = await api.post('/users', action.payload);
+            await replaceUserTempId(action, data);
+            invalidate(queryClient, 'syncUsers');
+          }
         }
 
         else if (action.type === 'UPDATE_USER') {

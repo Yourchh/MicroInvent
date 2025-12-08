@@ -46,15 +46,16 @@ export default function Inventory() {
 
   // --- HELPERS ---
   const handleSuccess = async (msg) => {
-    closeModal(); 
-    await queryClient.invalidateQueries({ queryKey: ['syncInventory'] }); 
+    closeModal();
+    // Invalidar en background sin esperar (no bloquea el cierre del modal)
+    queryClient.invalidateQueries({ queryKey: ['syncInventory'] }).catch(console.error);
     if (isOnline) { 
         alert(msg);
     }
   };
 
   const handleError = (err) => {
-    console.error(err);
+    console.error('❌ Error en operación:', err);
     setErrorMsg(err.response?.data?.message || err.message || 'Error en la operación');
   };
 
@@ -67,18 +68,23 @@ export default function Inventory() {
         await api.post('/products', payload);
       } else {
         const tempId = `temp_${Date.now()}`; 
-        return db.transaction('rw', db.inventory, db.mutations, async () => {
-             await db.inventory.add({
-                id: tempId, 
-                branch_id: selectedBranchId,
-                sku: data.sku,
-                product_name: data.name, 
-                price: data.price,
-                quantity: 0, 
-                min_stock_alert: data.min_stock_alert
-            });
-            await addToQueue('CREATE', payload, tempId);
-        });
+        try {
+          // Primero guardar en inventory
+          await db.inventory.add({
+            id: tempId, 
+            branch_id: selectedBranchId,
+            sku: data.sku,
+            product_name: data.name, 
+            price: data.price,
+            quantity: 0, 
+            min_stock_alert: data.min_stock_alert
+          });
+          // Luego guardar en mutations (sin transacción anidada)
+          await addToQueue('CREATE', payload, tempId);
+        } catch (err) {
+          console.error('❌ Error en create offline:', err);
+          throw err;
+        }
       }
     },
     onSuccess: () => handleSuccess(isOnline ? "Producto creado." : "Guardado sin conexión. Se subirá al volver internet."),
@@ -92,33 +98,37 @@ export default function Inventory() {
       if (isOnline) {
         await api.put(`/products/${idToUpdate}`, data);
         if (editingProduct.id) { 
-            await db.inventory.update(editingProduct.id, {
-                sku: data.sku,
-                product_name: data.name,
-                price: data.price,
-                min_stock_alert: data.min_stock_alert
-            });
+          await db.inventory.update(editingProduct.id, {
+            sku: data.sku,
+            product_name: data.name,
+            price: data.price,
+            min_stock_alert: data.min_stock_alert
+          });
         }
       } else {
-         return db.transaction('rw', db.inventory, db.mutations, async () => {
-            if (editingProduct.id) { 
-                await db.inventory.update(editingProduct.id, {
-                    sku: data.sku,
-                    product_name: data.name,
-                    price: data.price,
-                    min_stock_alert: data.min_stock_alert
-                });
-            }
-        // Si el ID es temporal, actualizamos la mutación de creación en vez de enviar un UPDATE inválido al backend
-        if (typeof idToUpdate === 'string') {
-          const existingCreate = await db.mutations.where('tempId').equals(idToUpdate).first();
-          if (existingCreate) {
-            await db.mutations.update(existingCreate.id, { payload: { ...existingCreate.payload, ...data } });
+        try {
+          // Actualizar inventory primero
+          if (editingProduct.id) { 
+            await db.inventory.update(editingProduct.id, {
+              sku: data.sku,
+              product_name: data.name,
+              price: data.price,
+              min_stock_alert: data.min_stock_alert
+            });
           }
-        } else {
-          await addToQueue('UPDATE', { ...data, id: idToUpdate });
+          // Luego actualizar mutations
+          if (typeof idToUpdate === 'string') {
+            const existingCreate = await db.mutations.where('tempId').equals(idToUpdate).first();
+            if (existingCreate) {
+              await db.mutations.update(existingCreate.id, { payload: { ...existingCreate.payload, ...data } });
+            }
+          } else {
+            await addToQueue('UPDATE', { ...data, id: idToUpdate });
+          }
+        } catch (err) {
+          console.error('❌ Error en update offline:', err);
+          throw err;
         }
-         });
       }
     },
     onSuccess: () => handleSuccess(isOnline ? "Producto actualizado." : "Cambio guardado localmente."),
@@ -127,17 +137,22 @@ export default function Inventory() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id) => {
-      await db.inventory.delete(id); 
+      try {
+        await db.inventory.delete(id); 
 
-      if (isOnline) {
-        await api.delete(`/products/${id}`);
-      } else {
-        if (typeof id === 'number') { 
-            await addToQueue('DELETE', { id });
+        if (isOnline) {
+          await api.delete(`/products/${id}`);
         } else {
+          if (typeof id === 'number') { 
+            await addToQueue('DELETE', { id });
+          } else {
             const createAction = await db.mutations.where('tempId').equals(id).first();
             if (createAction) await db.mutations.delete(createAction.id);
+          }
         }
+      } catch (err) {
+        console.error('❌ Error en delete offline:', err);
+        throw err;
       }
     },
     onSuccess: () => handleSuccess("Producto eliminado."),
