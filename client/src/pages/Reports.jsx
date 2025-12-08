@@ -250,7 +250,7 @@ export default function Reports() {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {stockData?.map((item) => (
-                <tr key={item.id} className="hover:bg-slate-50">
+                <tr key={item.inventory_id || item.product_id} className="hover:bg-slate-50">
                   <td className="px-6 py-3 text-sm font-mono text-slate-600">{item.sku}</td>
                   <td className="px-6 py-3 text-sm font-medium">{item.product_name}</td>
                   <td className="px-6 py-3 text-sm text-right">${item.price}</td>
@@ -323,8 +323,8 @@ export default function Reports() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {valueData?.details?.map((d, idx) => (
-                  <tr key={idx} className="hover:bg-slate-50">
+                {valueData?.details?.map((d) => (
+                  <tr key={d.id || `${d.sku}-${d.name}`} className="hover:bg-slate-50">
                     <td className="px-6 py-3 text-sm font-medium">
                       {d.name} <span className="text-xs text-slate-400 ml-1 font-mono">({d.sku})</span>
                     </td>

@@ -60,15 +60,15 @@ export default function Settings() {
         
         <div className="p-6">
           <h4 className="font-medium text-slate-800 mb-2">Restablecer Base de Datos</h4>
-          <p className="text-slate-500 text-sm mb-6 max-w-2xl">
+          <p className="text-slate-500 text-sm mb-2 max-w-2xl">
             Esta acción eliminará permanentemente:
-            <ul className="list-disc list-inside mt-2 ml-2 space-y-1">
-              <li>Todos los productos del catálogo.</li>
-              <li>Todo el historial de inventario y stock actual.</li>
-              <li>Todos los registros de movimientos y transferencias.</li>
-              <li>Todos los usuarios (excepto tu cuenta de administrador actual).</li>
-            </ul>
           </p>
+          <ul className="list-disc list-inside mt-2 ml-2 space-y-1 text-slate-500 text-sm mb-6">
+            <li>Todos los productos del catálogo.</li>
+            <li>Todo el historial de inventario y stock actual.</li>
+            <li>Todos los registros de movimientos y transferencias.</li>
+            <li>Todos los usuarios (excepto tu cuenta de administrador actual).</li>
+          </ul>
           
           <button 
             onClick={() => setIsModalOpen(true)}
