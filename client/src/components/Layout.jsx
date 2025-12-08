@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { LayoutDashboard, Package, FileText, LogOut, Users } from 'lucide-react';
 import { Settings as SettingsIcon } from 'lucide-react';
 import OfflineAlert from './OfflineAlert';
+import OfflineBlocker from './OfflineBlocker';
 import { useState, useEffect } from 'react';
 
 // eslint-disable-next-line no-unused-vars
@@ -47,6 +48,9 @@ export default function Layout() {
 
   return (
     <div className="min-h-screen flex bg-background">
+      {/* OfflineBlocker - Cubre toda la pantalla si se va internet */}
+      <OfflineBlocker />
+
       {/* Sidebar */}
       <aside className="w-64 bg-surface border-r border-slate-200 fixed h-full p-6 flex flex-col">
         <div className="mb-8 flex items-center gap-2 px-2">
