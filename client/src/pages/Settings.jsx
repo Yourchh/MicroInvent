@@ -29,7 +29,7 @@ export default function Settings() {
   }, []);
 
   // Cargar sucursales
-  const { data: branches = [], isLoading: branchesLoading } = useQuery({
+  const { data: branches = [] } = useQuery({
     queryKey: ['branches'],
     queryFn: async () => {
       const response = await api.get('/branches');
@@ -62,6 +62,29 @@ export default function Settings() {
       setBranchError(err.response?.data?.message || err.message || 'Error desconocido');
     }
   });
+
+  // Mutación para eliminar sucursal
+  const deleteBranchMutation = useMutation({
+    mutationFn: async (branchId) => {
+      await api.delete(`/branches/${branchId}`);
+      return branchId;
+    },
+    onSuccess: (branchId) => {
+      queryClient.invalidateQueries({ queryKey: ['branches'] });
+      const branch = branches.find(b => b.id === branchId);
+      setSuccessMsg(`Sucursal "${branch?.name}" eliminada correctamente`);
+      setTimeout(() => setSuccessMsg(''), 3000);
+    },
+    onError: (err) => {
+      alert(err.response?.data?.message || 'Error al eliminar la sucursal');
+    }
+  });
+
+  const handleDeleteBranch = (branchId, branchName) => {
+    if (window.confirm(`¿Estás seguro de eliminar la sucursal "${branchName}"? Esta acción no se puede deshacer y eliminará todos los datos asociados.`)) {
+      deleteBranchMutation.mutate(branchId);
+    }
+  };
 
   // Mutación para borrar todo
   const resetMutation = useMutation({
@@ -129,11 +152,16 @@ export default function Settings() {
         </div>
       )}
 
-      {/* Gestión de Sucursales */}
+      {/* Gestión de Sucursales - Solo SuperAdmin puede crear/eliminar */}
       <div className="border border-blue-200 rounded-xl overflow-hidden bg-white shadow-sm">
         <div className="bg-blue-50 p-4 border-b border-blue-100 flex items-center gap-3">
           <Building2 className="text-blue-600" size={24} />
-          <h3 className="text-lg font-bold text-blue-700">Gestión de Sucursales</h3>
+          <div className="flex-1">
+            <h3 className="text-lg font-bold text-blue-700">Gestión de Sucursales</h3>
+            {!isSuperAdmin && (
+              <p className="text-xs text-blue-600 mt-0.5">Solo consulta - Contacta al SuperAdmin para cambios</p>
+            )}
+          </div>
         </div>
         
         <div className="p-6">
@@ -142,15 +170,17 @@ export default function Settings() {
               <h4 className="font-medium text-slate-800">Sucursales Registradas</h4>
               <p className="text-slate-500 text-sm">Total: {branches?.length || 0}</p>
             </div>
-            <button
-              onClick={() => {
-                setIsBranchModalOpen(true);
-                setBranchError('');
-              }}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
-            >
-              <Plus size={18} /> Nueva Sucursal
-            </button>
+            {isSuperAdmin && (
+              <button
+                onClick={() => {
+                  setIsBranchModalOpen(true);
+                  setBranchError('');
+                }}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+              >
+                <Plus size={18} /> Nueva Sucursal
+              </button>
+            )}
           </div>
 
           {branches && branches.length > 0 ? (
@@ -158,7 +188,7 @@ export default function Settings() {
               {branches.map((branch) => (
                 <div
                   key={branch.id}
-                  className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg border border-slate-200"
+                  className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg border border-slate-200 hover:border-slate-300 transition-colors"
                 >
                   <MapPin size={18} className="text-blue-600 flex-shrink-0" />
                   <div className="flex-1">
@@ -167,9 +197,18 @@ export default function Settings() {
                       <p className="text-sm text-slate-500">{branch.address}</p>
                     )}
                   </div>
-                  <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
+                  <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded font-medium">
                     ID: {branch.id}
                   </span>
+                  {isSuperAdmin && (
+                    <button
+                      onClick={() => handleDeleteBranch(branch.id, branch.name)}
+                      className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      title="Eliminar sucursal"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
@@ -179,41 +218,43 @@ export default function Settings() {
         </div>
       </div>
 
-      {/* Tarjeta de Zona de Peligro */}
-      <div className="border border-red-200 rounded-xl overflow-hidden bg-white shadow-sm">
-        <div className="bg-red-50 p-4 border-b border-red-100 flex items-center gap-3">
-          <ShieldAlert className="text-red-600" size={24} />
-          <h3 className="text-lg font-bold text-red-700">Zona de Peligro</h3>
-        </div>
-        
-        <div className="p-6">
-          <h4 className="font-medium text-slate-800 mb-2">Restablecer Base de Datos</h4>
-          <p className="text-slate-500 text-sm mb-2 max-w-2xl">
-            Esta acción eliminará permanentemente:
-          </p>
-          <ul className="list-disc list-inside mt-2 ml-2 space-y-1 text-slate-500 text-sm mb-4">
-            <li>Todos los productos del catálogo.</li>
-            <li>Todo el historial de inventario y stock actual.</li>
-            <li>Todos los registros de movimientos y transferencias.</li>
-            <li>Todos los usuarios (excepto tu cuenta de administrador actual).</li>
-          </ul>
-
-          {!isOnline && (
-            <div className="bg-amber-50 border border-amber-200 text-amber-800 p-3 rounded-lg flex items-start gap-2 mb-4">
-              <WifiOff size={18} className="flex-shrink-0 mt-0.5" />
-              <p className="text-sm font-medium">Requiere conexión a internet para eliminar datos del servidor.</p>
-            </div>
-          )}
+      {/* Tarjeta de Zona de Peligro - Solo SuperAdmin */}
+      {isSuperAdmin && (
+        <div className="border border-red-200 rounded-xl overflow-hidden bg-white shadow-sm">
+          <div className="bg-red-50 p-4 border-b border-red-100 flex items-center gap-3">
+            <ShieldAlert className="text-red-600" size={24} />
+            <h3 className="text-lg font-bold text-red-700">Zona de Peligro</h3>
+          </div>
           
-          <button 
-            onClick={() => setIsModalOpen(true)}
-            disabled={!isOnline}
-            className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors shadow-sm disabled:bg-slate-300 disabled:cursor-not-allowed"
-          >
-            <Trash2 size={18} /> Eliminar toda la información
-          </button>
+          <div className="p-6">
+            <h4 className="font-medium text-slate-800 mb-2">Restablecer Base de Datos</h4>
+            <p className="text-slate-500 text-sm mb-2 max-w-2xl">
+              Esta acción eliminará permanentemente:
+            </p>
+            <ul className="list-disc list-inside mt-2 ml-2 space-y-1 text-slate-500 text-sm mb-4">
+              <li>Todos los productos del catálogo.</li>
+              <li>Todo el historial de inventario y stock actual.</li>
+              <li>Todos los registros de movimientos y transferencias.</li>
+              <li>Todos los usuarios (excepto tu cuenta de administrador actual).</li>
+            </ul>
+
+            {!isOnline && (
+              <div className="bg-amber-50 border border-amber-200 text-amber-800 p-3 rounded-lg flex items-start gap-2 mb-4">
+                <WifiOff size={18} className="flex-shrink-0 mt-0.5" />
+                <p className="text-sm font-medium">Requiere conexión a internet para eliminar datos del servidor.</p>
+              </div>
+            )}
+            
+            <button 
+              onClick={() => setIsModalOpen(true)}
+              disabled={!isOnline}
+              className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors shadow-sm disabled:bg-slate-300 disabled:cursor-not-allowed"
+            >
+              <Trash2 size={18} /> Eliminar toda la información
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Modal para Crear Sucursal */}
       {isBranchModalOpen && (
