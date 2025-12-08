@@ -2,10 +2,12 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
-import { Plus, Trash2, FileText, Filter } from 'lucide-react';
+import { Plus, Trash2, FileText, Filter, Clock, CheckCircle2, Wifi, WifiOff } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { useMovementsSync } from '../hooks/useMovementsSync';
+import { addToQueue } from '../services/syncQueue';
 
 export default function Movements() {
   const { user } = useAuth();
@@ -18,6 +20,9 @@ export default function Movements() {
     quantity: '',
     reason: ''
   });
+
+  // Usar el hook de sincronización
+  const { isOnline, isSyncing } = useMovementsSync(user?.branch_id);
 
   // Cargar productos
   const { data: products = [] } = useQuery({
@@ -93,6 +98,23 @@ export default function Movements() {
     return labels[type] || type;
   };
 
+  const getSyncStatus = (movement) => {
+    const isTemp = typeof movement.id === 'string' && movement.id.startsWith('temp_');
+    
+    if (isSyncing || isTemp) {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-orange-100 text-orange-700 text-xs font-bold border border-orange-200">
+          <Clock size={12} /> Pendiente
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-green-100 text-green-700 text-xs font-bold border border-green-200">
+        <CheckCircle2 size={12} /> Sincronizado
+      </span>
+    );
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -100,9 +122,20 @@ export default function Movements() {
           <h2 className="text-2xl font-bold text-slate-800">Movimientos de Inventario</h2>
           <p className="text-slate-500">Registro de entradas, salidas y ajustes</p>
         </div>
-        <Button onClick={() => setShowModal(true)}>
-          <Plus size={18} /> Registrar Movimiento
-        </Button>
+        <div className="flex items-center gap-3">
+          {isOnline ? (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-green-50 text-green-700 text-sm">
+              <Wifi size={16} /> En línea
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-orange-50 text-orange-700 text-sm">
+              <WifiOff size={16} /> Modo offline
+            </div>
+          )}
+          <Button onClick={() => setShowModal(true)}>
+            <Plus size={18} /> Registrar Movimiento
+          </Button>
+        </div>
       </div>
 
       {/* Filtros */}
@@ -133,6 +166,7 @@ export default function Movements() {
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Usuario</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Motivo</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Fecha</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Estado</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -149,6 +183,9 @@ export default function Movements() {
                   <td className="px-6 py-4 text-slate-600 text-sm">{mov.reason || '-'}</td>
                   <td className="px-6 py-4 text-slate-600 text-sm">
                     {format(new Date(mov.created_at), 'dd MMM yyyy HH:mm', { locale: es })}
+                  </td>
+                  <td className="px-6 py-4">
+                    {getSyncStatus(mov)}
                   </td>
                 </tr>
               ))}

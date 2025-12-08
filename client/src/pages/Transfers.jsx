@@ -2,10 +2,11 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
-import { Plus, Check, X, ArrowRight, TrendingUp } from 'lucide-react';
+import { Plus, Check, X, ArrowRight, TrendingUp, Clock, CheckCircle2, Wifi, WifiOff } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { useTransfersSync } from '../hooks/useTransfersSync';
 
 export default function Transfers() {
   const { user } = useAuth();
@@ -16,6 +17,9 @@ export default function Transfers() {
     dest_branch_id: '',
     products: [{ product_id: '', quantity: '' }]
   });
+
+  // Usar el hook de sincronización
+  const { isOnline, isSyncing } = useTransfersSync(user?.branch_id);
 
   // Cargar sucursales
   const { data: branches = [] } = useQuery({
@@ -172,6 +176,23 @@ export default function Transfers() {
     return labels[status] || status;
   };
 
+  const getSyncStatus = (transfer) => {
+    const isTemp = typeof transfer.id === 'string' && transfer.id.startsWith('temp_');
+    
+    if (isSyncing || isTemp) {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-orange-100 text-orange-700 text-xs font-bold border border-orange-200">
+          <Clock size={12} /> Pendiente
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-green-100 text-green-700 text-xs font-bold border border-green-200">
+        <CheckCircle2 size={12} /> Sincronizado
+      </span>
+    );
+  };
+
   const canApprove = (transfer) => {
     return transfer.status === 'PENDING' && transfer.dest_branch_id === user?.branch_id;
   };
@@ -194,9 +215,20 @@ export default function Transfers() {
           </h2>
           <p className="text-slate-500">Gestión de movimientos de inventario entre sucursales</p>
         </div>
-        <Button onClick={() => setShowModal(true)}>
-          <Plus size={18} /> Nueva Transferencia
-        </Button>
+        <div className="flex items-center gap-3">
+          {isOnline ? (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-green-50 text-green-700 text-sm">
+              <Wifi size={16} /> En línea
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-orange-50 text-orange-700 text-sm">
+              <WifiOff size={16} /> Modo offline
+            </div>
+          )}
+          <Button onClick={() => setShowModal(true)}>
+            <Plus size={18} /> Nueva Transferencia
+          </Button>
+        </div>
       </div>
 
       {/* Filtros */}
@@ -225,6 +257,7 @@ export default function Transfers() {
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Estado</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Solicitante</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Fecha</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Sincronización</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Acciones</th>
               </tr>
             </thead>
@@ -250,6 +283,9 @@ export default function Transfers() {
                   <td className="px-6 py-4 text-sm text-slate-600">{transfer.requester_username}</td>
                   <td className="px-6 py-4 text-sm text-slate-600">
                     {format(new Date(transfer.created_at), 'dd MMM yyyy HH:mm', { locale: es })}
+                  </td>
+                  <td className="px-6 py-4">
+                    {getSyncStatus(transfer)}
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex gap-2">
