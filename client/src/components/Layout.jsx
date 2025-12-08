@@ -43,8 +43,9 @@ export default function Layout() {
     };
   }, []);
   
-  const isAdmin = user?.role === 'admin';
-  const canViewReports = ['admin', 'manager'].includes(user?.role);
+  const isSuperAdmin = user?.role === 'superadmin';
+  const isAdmin = user?.role === 'admin' || isSuperAdmin;
+  const canViewReports = ['admin', 'superadmin', 'manager'].includes(user?.role);
 
   return (
     <div className="min-h-screen flex bg-background">
