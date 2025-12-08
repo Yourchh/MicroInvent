@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
-import { Search, Plus, X, Save, Package, AlertTriangle, Wifi, WifiOff, RefreshCw, MapPin, Pencil, Trash2 } from 'lucide-react';
+// 1. IMPORTAMOS ICONOS NUEVOS (Clock, CheckCircle2)
+import { Search, Plus, X, Save, Package, AlertTriangle, Wifi, WifiOff, RefreshCw, MapPin, Pencil, Trash2, Clock, CheckCircle2 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { useInventorySync } from '../hooks/useInventorySync'; 
 import { db } from '../db'; 
@@ -45,13 +46,8 @@ export default function Inventory() {
 
   // --- HELPERS ---
   const handleSuccess = async (msg) => {
-    closeModal(); // Cierra el modal inmediatamente
-
-    // Al guardar, invalidamos la query de sync para forzar una recarga del servidor
-    // Esto disparará la función processQueue si estamos online.
+    closeModal(); 
     await queryClient.invalidateQueries(['syncInventory']); 
-    
-    // Solo muestra la alerta si hay internet (online)
     if (isOnline) { 
         alert(msg);
     }
@@ -61,24 +57,17 @@ export default function Inventory() {
     console.error(err);
     setErrorMsg(err.response?.data?.message || err.message || 'Error en la operación');
   };
-  // ---------------------------------------------------------------------------------
 
-  // --- MUTACIONES (Híbridas: Online/Offline Queuing) ---
-  
+  // --- MUTACIONES (Código igual al original...) ---
   const createMutation = useMutation({
     mutationFn: async (data) => {
       const payload = { ...data, branch_id: selectedBranchId };
 
       if (isOnline) {
-        // MODO ONLINE: Directo al servidor
         await api.post('/products', payload);
       } else {
-        // MODO OFFLINE: Se resuelve inmediatamente para cerrar el modal y mostrar el registro.
         const tempId = `temp_${Date.now()}`; 
-        
-        // CORRECCIÓN CLAVE: Devolver explícitamente el resultado de la transacción.
         return db.transaction('rw', db.inventory, db.mutations, async () => {
-             // 1. Guardar en Inventario Local (Optimista y visible al usuario)
              await db.inventory.add({
                 id: tempId, 
                 branch_id: selectedBranchId,
@@ -88,8 +77,6 @@ export default function Inventory() {
                 quantity: 0, 
                 min_stock_alert: data.min_stock_alert
             });
-
-            // 2. Agregar a la cola de subida
             await addToQueue('CREATE', payload, tempId);
         });
       }
@@ -103,10 +90,7 @@ export default function Inventory() {
       const idToUpdate = editingProduct?.product_id || editingProduct?.id;
       
       if (isOnline) {
-        // MODO ONLINE: Directo al servidor
         await api.put(`/products/${idToUpdate}`, data);
-        
-        // Actualización Optimista Local
         if (editingProduct.id) { 
             await db.inventory.update(editingProduct.id, {
                 sku: data.sku,
@@ -116,10 +100,7 @@ export default function Inventory() {
             });
         }
       } else {
-        // MODO OFFLINE: Usamos transacción para atomicidad en la actualización local + cola.
-         // CORRECCIÓN CLAVE: Devolver explícitamente el resultado de la transacción.
          return db.transaction('rw', db.inventory, db.mutations, async () => {
-            // 1. Actualización Optimista Local
             if (editingProduct.id) { 
                 await db.inventory.update(editingProduct.id, {
                     sku: data.sku,
@@ -128,7 +109,6 @@ export default function Inventory() {
                     min_stock_alert: data.min_stock_alert
                 });
             }
-            // 2. Agregar a la cola de actualización
             await addToQueue('UPDATE', { ...data, id: idToUpdate });
          });
       }
@@ -139,31 +119,23 @@ export default function Inventory() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id) => {
-      // 1. Eliminación Optimista Local (El producto desaparece inmediatamente)
       await db.inventory.delete(id); 
 
       if (isOnline) {
         await api.delete(`/products/${id}`);
       } else {
-        // MODO OFFLINE: Lógica de cola
-        // Si el ID es temporal (string), eliminamos la acción de CREATE de la cola.
         if (typeof id === 'number') { 
             await addToQueue('DELETE', { id });
         } else {
-            // Es temporal, debemos borrar la acción de creación pendiente si existe
             const createAction = await db.mutations.where('tempId').equals(id).first();
             if (createAction) await db.mutations.delete(createAction.id);
         }
       }
     },
-    onSuccess: () => {
-      // Usar handleSuccess para flujo consistente
-      handleSuccess("Producto eliminado.");
-    },
+    onSuccess: () => handleSuccess("Producto eliminado."),
     onError: (err) => alert(err.response?.data?.message || "Error al eliminar")
   });
 
-  // Handlers
   const handleSubmit = (e) => {
     e.preventDefault();
     if (editingProduct) updateMutation.mutate(formData);
@@ -196,7 +168,6 @@ export default function Inventory() {
     }
   };
 
-  // Filtrado Seguro
   const safeProducts = Array.isArray(products) ? products : [];
   const filteredProducts = safeProducts.filter(p => {
     const name = p.product_name || p.name || '';
@@ -204,6 +175,25 @@ export default function Inventory() {
     return name.toLowerCase().includes(search.toLowerCase()) || 
            sku.toLowerCase().includes(search.toLowerCase());
   });
+
+  // 2. HELPER PARA SABER EL ESTADO
+  const getSyncStatus = (product) => {
+    // Si el ID es un string y empieza con 'temp_', fue creado offline y no se ha sincronizado
+    const isTemp = typeof product.id === 'string' && product.id.toString().startsWith('temp_');
+    
+    if (isTemp) {
+        return (
+            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-orange-100 text-orange-700 text-xs font-bold border border-orange-200">
+                <Clock size={12} /> Pendiente
+            </span>
+        );
+    }
+    return (
+        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-green-100 text-green-700 text-xs font-bold border border-green-200">
+            <CheckCircle2 size={12} /> Sincronizado
+        </span>
+    );
+  };
 
   return (
     <div className="relative">
@@ -214,7 +204,7 @@ export default function Inventory() {
         {isOnline && isSyncing && <RefreshCw size={16} className="animate-spin ml-1" />}
       </div>
 
-      {/* Header */}
+      {/* Header (Sin cambios) */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
         <div>
           <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">Inventario</h2>
@@ -255,7 +245,7 @@ export default function Inventory() {
         </div>
       </div>
 
-      {/* Tabla */}
+      {/* Tabla Actualizada */}
       <div className="bg-surface rounded-xl shadow-sm border border-slate-200 overflow-hidden">
         <table className="w-full text-left">
           <thead className="bg-slate-50 border-b border-slate-200">
@@ -264,6 +254,8 @@ export default function Inventory() {
               <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Producto</th>
               <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase text-right">Precio</th>
               <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase text-center">Stock</th>
+              {/* 3. NUEVA COLUMNA DE ESTADO */}
+              <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase text-center">Estado</th> 
               <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase text-center">Acciones</th>
             </tr>
           </thead>
@@ -279,6 +271,10 @@ export default function Inventory() {
                   </td>
                   <td className="px-6 py-4 text-sm text-slate-600 text-right">${p.price}</td>
                   <td className="px-6 py-4 text-sm font-bold text-center text-slate-800">{p.quantity}</td>
+                  {/* 4. RENDERIZADO DEL ESTADO */}
+                  <td className="px-6 py-4 text-center">
+                    {getSyncStatus(p)}
+                  </td>
                   <td className="px-6 py-4 text-center flex justify-center gap-2">
                     <button onClick={() => openEditModal(p)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
                       <Pencil size={18} />
@@ -289,7 +285,7 @@ export default function Inventory() {
                   </td>
                 </tr>
               )) : 
-              <tr><td colSpan="5" className="p-8 text-center text-slate-400">
+              <tr><td colSpan="6" className="p-8 text-center text-slate-400">
                   {isOnline ? 'No se encontraron productos.' : 'Sin datos locales. Conéctate a internet.'}
               </td></tr>
             }
@@ -297,7 +293,7 @@ export default function Inventory() {
         </table>
       </div>
 
-      {/* Modal */}
+      {/* Modal (Sin cambios) */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
