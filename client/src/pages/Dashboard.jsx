@@ -1,8 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
-import { TrendingUp, AlertTriangle, Package, DollarSign } from 'lucide-react';
+import { TrendingUp, AlertTriangle, Package, DollarSign, WifiOff, X } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
+import { useState, useEffect } from 'react';
 
 // Componente reutilizable para las tarjetas de métricas
 // eslint-disable-next-line no-unused-vars
@@ -22,6 +23,19 @@ const StatCard = ({ title, value, icon: Icon, color, subtext }) => (
 export default function Dashboard() {
   const { user } = useAuth();
   const branchId = user?.branch_id || 1;
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [showOfflineAlert, setShowOfflineAlert] = useState(true);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   // 1. Obtener datos de valor del inventario
   const { data: valueData, isLoading: loadingValue } = useQuery({
@@ -59,6 +73,23 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
+      {/* Alerta de Modo Offline */}
+      {!isOnline && showOfflineAlert && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-lg flex items-start gap-3">
+          <WifiOff size={20} className="flex-shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="font-semibold text-sm">Visualizando datos en caché</p>
+            <p className="text-sm">Las métricas mostradas pueden no estar actualizadas. Conecta a internet para ver datos en tiempo real.</p>
+          </div>
+          <button
+            onClick={() => setShowOfflineAlert(false)}
+            className="text-amber-400 hover:text-amber-600 flex-shrink-0 transition-colors"
+          >
+            <X size={18} />
+          </button>
+        </div>
+      )}
+
       <div className="mb-6">
         <h2 className="text-2xl font-bold text-slate-800">Dashboard</h2>
         <p className="text-slate-500">Resumen general de tu sucursal</p>

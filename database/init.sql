@@ -64,5 +64,16 @@ CREATE TABLE IF NOT EXISTS transfer_items (
     quantity INT NOT NULL
 );
 
+-- TABLA DE SESIONES (Para validar una sesión activa por sucursal)
+CREATE TABLE sessions (
+    id SERIAL PRIMARY KEY,
+    user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    branch_id INT NOT NULL REFERENCES branches(id) ON DELETE CASCADE,
+    token VARCHAR(500) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, branch_id) -- Solo una sesión por usuario y sucursal
+);
+
 -- DATOS INICIALES
 INSERT INTO branches (name) VALUES ('Matriz'), ('Sucursal Norte');

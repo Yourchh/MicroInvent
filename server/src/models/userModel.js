@@ -24,6 +24,13 @@ const User = {
     return rows;
   },
 
+  // --- VALIDACIONES ---
+  branchExists: async (branchId) => {
+    if (!branchId) return true; // Si no hay branch_id, es válido (puede ser NULL)
+    const { rows } = await pool.query('SELECT id FROM branches WHERE id = $1', [branchId]);
+    return rows.length > 0;
+  },
+
   // --- CREAR ---
   create: async (username, passwordHash, role, branch_id) => {
     const query = `

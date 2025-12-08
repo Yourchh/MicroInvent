@@ -25,6 +25,17 @@ export const AuthProvider = ({ children }) => {
     try {
       const { data } = await api.post('/auth/login', { username, password });
       
+      // Si requiere selección de sucursal, retornar tempToken
+      if (data.requiresBranchSelection) {
+        setLoading(false);
+        return {
+          success: true,
+          requiresBranchSelection: true,
+          tempToken: data.tempToken
+        };
+      }
+
+      // Flujo normal (legacy o sin cambios)
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
       
@@ -40,7 +51,14 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const logout = () => {
+  const logout = async () => {
+    try {
+      // Intentar logout en el servidor
+      await api.post('/auth/logout');
+    } catch (err) {
+      console.warn('Error en logout del servidor:', err.message);
+    }
+    
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     setUser(null);

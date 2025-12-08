@@ -13,22 +13,38 @@ exports.getUsers = async (req, res) => {
 // CREAR USUARIO
 exports.createUser = async (req, res) => {
   try {
+    console.log('📥 Recibiendo petición CREATE USER:', req.body);
     const { username, password, role, branch_id } = req.body;
 
     // Validación básica
     if (!username || !password || !role) {
+      console.log('❌ Validación fallida - Datos:', { username, password: password ? 'EXISTS' : 'MISSING', role, branch_id });
       return res.status(400).json({ message: 'Faltan datos obligatorios' });
     }
 
+    // Validar que branch_id existe
+    if (branch_id) {
+      const branchExists = await User.branchExists(branch_id);
+      if (!branchExists) {
+        console.log('❌ Branch no existe:', branch_id);
+        return res.status(400).json({ message: `La sucursal con ID ${branch_id} no existe. Por favor, seleccione una sucursal válida.` });
+      }
+    }
+
     const existing = await User.findByUsername(username);
-    if (existing) return res.status(400).json({ message: 'El usuario ya existe' });
+    if (existing) {
+      console.log('❌ Usuario ya existe:', username);
+      return res.status(400).json({ message: 'El usuario ya existe' });
+    }
 
     const salt = await bcrypt.genSalt(10);
     const hash = await bcrypt.hash(password, salt);
 
     const newUser = await User.create(username, hash, role, branch_id);
+    console.log('✅ Usuario creado exitosamente:', newUser);
     res.status(201).json(newUser);
   } catch (err) {
+    console.error('❌ Error en createUser:', err);
     res.status(500).json({ error: err.message });
   }
 };

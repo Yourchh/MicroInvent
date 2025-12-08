@@ -1,13 +1,121 @@
-const pool = require('../config/db');
+const Branch = require('../models/branchModel');
 
-const getAllBranches = async (req, res) => {
+// OBTENER TODAS LAS SUCURSALES
+exports.getBranches = async (req, res) => {
   try {
-    const { rows } = await pool.query('SELECT * FROM branches ORDER BY id ASC');
-    res.json(rows);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Error al obtener sucursales' });
+    const branches = await Branch.findAll();
+    res.json(branches);
+  } catch (err) {
+    console.error('❌ Error obteniendo sucursales:', err);
+    res.status(500).json({ error: err.message });
   }
 };
 
-module.exports = { getAllBranches };
+// OBTENER UNA SUCURSAL POR ID
+exports.getBranch = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const branch = await Branch.findById(id);
+    if (!branch) {
+      return res.status(404).json({ message: 'Sucursal no encontrada' });
+    }
+    res.json(branch);
+  } catch (err) {
+    console.error('❌ Error obteniendo sucursal:', err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// CREAR NUEVA SUCURSAL
+exports.createBranch = async (req, res) => {
+  try {
+    console.log('📥 Recibiendo petición CREATE BRANCH:', req.body);
+    const { name, address } = req.body;
+
+    // Validar que el usuario es admin
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Solo administradores pueden crear sucursales' });
+    }
+
+    // Validación básica
+    if (!name || name.trim() === '') {
+      return res.status(400).json({ message: 'El nombre de la sucursal es obligatorio' });
+    }
+
+    // Verificar duplicados
+    const existing = await Branch.findByName(name);
+    if (existing) {
+      return res.status(400).json({ message: 'La sucursal ya existe' });
+    }
+
+    const newBranch = await Branch.create(name, address || null);
+    console.log('✅ Sucursal creada exitosamente:', newBranch);
+    res.status(201).json(newBranch);
+  } catch (err) {
+    console.error('❌ Error en createBranch:', err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// ACTUALIZAR SUCURSAL
+exports.updateBranch = async (req, res) => {
+  try {
+    console.log('📝 Recibiendo petición UPDATE BRANCH:', req.body);
+    const { id } = req.params;
+    const { name, address } = req.body;
+
+    // Validar que el usuario es admin
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Solo administradores pueden editar sucursales' });
+    }
+
+    // Validación básica
+    if (!name || name.trim() === '') {
+      return res.status(400).json({ message: 'El nombre de la sucursal es obligatorio' });
+    }
+
+    // Verificar que existe
+    const existing = await Branch.findById(id);
+    if (!existing) {
+      return res.status(404).json({ message: 'Sucursal no encontrada' });
+    }
+
+    const updated = await Branch.update(id, name, address || null);
+    console.log('✅ Sucursal actualizada:', updated);
+    res.json(updated);
+  } catch (err) {
+    console.error('❌ Error en updateBranch:', err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// ELIMINAR SUCURSAL
+exports.deleteBranch = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Validar que el usuario es admin
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Solo administradores pueden eliminar sucursales' });
+    }
+
+    const existing = await Branch.findById(id);
+    if (!existing) {
+      return res.status(404).json({ message: 'Sucursal no encontrada' });
+    }
+
+    await Branch.delete(id);
+    console.log('✅ Sucursal eliminada:', id);
+    res.json({ message: 'Sucursal eliminada', id });
+  } catch (err) {
+    console.error('❌ Error en deleteBranch:', err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// EXPORTAR FUNCIÓN HEREDADA PARA COMPATIBILIDAD
+const getAllBranches = async (req, res) => {
+  return exports.getBranches(req, res);
+};
+
+module.exports = { getAllBranches, ...exports };

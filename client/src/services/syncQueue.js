@@ -63,6 +63,28 @@ export const processQueue = async (queryClient) => {
 
     console.log(`🔄 Procesando ${pendingActions.length} cambios pendientes...`);
 
+    // Detectar y eliminar duplicados de CREATE_USER con mismo username
+    const createUserActions = pendingActions.filter(a => a.type === 'CREATE_USER');
+    const seenUsernames = new Set();
+    const duplicateIds = [];
+    
+    for (const action of createUserActions) {
+      if (seenUsernames.has(action.payload.username)) {
+        console.warn('⚠️ Duplicado detectado para usuario:', action.payload.username);
+        duplicateIds.push(action.id);
+      } else {
+        seenUsernames.add(action.payload.username);
+      }
+    }
+    
+    if (duplicateIds.length > 0) {
+      console.log(`🗑️ Eliminando ${duplicateIds.length} mutaciones duplicadas`);
+      await db.mutations.bulkDelete(duplicateIds);
+      // Recargar las mutaciones después de eliminar duplicados
+      const updatedActions = await db.mutations.orderBy('timestamp').toArray();
+      return processQueue(queryClient, updatedActions);
+    }
+
     for (const action of pendingActions) {
       try {
         if (action.type === 'CREATE') {
@@ -87,9 +109,31 @@ export const processQueue = async (queryClient) => {
           if (!action.payload.username || !action.payload.password) {
             console.warn('⚠️ CREATE_USER sin username o password (debería haber sido eliminado)');
           } else {
-            const { data } = await api.post('/users', action.payload);
-            await replaceUserTempId(action, data);
-            invalidate(queryClient, 'syncUsers');
+            // Remover el ID temporal antes de enviar al servidor
+            // eslint-disable-next-line no-unused-vars
+            const { id, temp, created_at, ...payloadWithoutId } = action.payload;
+            console.log('📤 Enviando CREATE_USER al servidor:', payloadWithoutId);
+            
+            try {
+              const { data } = await api.post('/users', payloadWithoutId);
+              console.log('✅ Usuario creado en servidor:', data);
+              await replaceUserTempId(action, data);
+              invalidate(queryClient, 'syncUsers');
+            } catch (err) {
+              const errorMsg = err.response?.data?.message || err.message;
+              
+              // Si es error 400 (validación), eliminamos la mutación
+              if (err.response?.status === 400) {
+                console.warn(`⚠️ Error de validación para usuario ${payloadWithoutId.username}: ${errorMsg}`);
+                console.warn('Eliminando de la cola de sincronización');
+                // Eliminar el usuario temporal de IndexedDB
+                if (action.tempId) {
+                  await db.users.delete(action.tempId);
+                }
+              } else {
+                throw err; // Re-lanzar otros errores para reintentar
+              }
+            }
           }
         }
 

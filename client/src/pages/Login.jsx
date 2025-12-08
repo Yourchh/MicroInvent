@@ -4,23 +4,45 @@ import { useNavigate } from 'react-router-dom';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { Box } from 'lucide-react';
+import BranchSelection from '../components/BranchSelection';
 
 export default function Login() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [tempToken, setTempToken] = useState('');
+  const [requiresBranchSelection, setRequiresBranchSelection] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     const result = await login(username, password);
+    
     if (result.success) {
-      navigate('/dashboard');
+      // Si requiere selección de sucursal
+      if (result.requiresBranchSelection) {
+        console.log('🔄 Requiere selección de sucursal');
+        setTempToken(result.tempToken);
+        setRequiresBranchSelection(true);
+      } else {
+        // Login completado
+        navigate('/dashboard');
+      }
     } else {
       setError(result.message);
     }
   };
+
+  const handleBranchSelected = () => {
+    console.log('✅ Sucursal seleccionada, redirigiendo...');
+    navigate('/dashboard');
+  };
+
+  // Si requiere selección de sucursal, mostrar el componente
+  if (requiresBranchSelection) {
+    return <BranchSelection tempToken={tempToken} onBranchSelected={handleBranchSelected} />;
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">

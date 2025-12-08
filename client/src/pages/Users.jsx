@@ -15,6 +15,7 @@ export default function Users() {
   const { user: currentUser } = useAuth();
   const queryClient = useQueryClient();
   const [errorMsg, setErrorMsg] = useState('');
+  const [showOfflineAlert, setShowOfflineAlert] = useState(true);
   
   // Estados del Modal
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -31,12 +32,34 @@ export default function Users() {
   // 1. CARGAR USUARIOS DESDE HOOK OFFLINE-FIRST
   const { users, isLoading: isSyncing, isOnline } = useUserSync();
 
-  // Cargar Sucursales
+  // Cargar Sucursales - SIEMPRE intenta obtenerlas, con caché
   const { data: branches = [] } = useQuery({
     queryKey: ['branches'],
-    queryFn: async () => (await api.get('/branches')).data,
-    enabled: isOnline, 
-    staleTime: 1000 * 60 * 60, 
+    queryFn: async () => {
+      try {
+        const response = await api.get('/branches');
+        const data = response.data;
+        
+        // Guardar en IndexedDB para acceso offline
+        await db.branches.bulkPut(data);
+        console.log('✅ Sucursales cargadas y cacheadas:', data);
+        
+        return data;
+      } catch (err) {
+        console.warn('⚠️ Error cargando sucursales online, intentando desde caché:', err.message);
+        
+        // Si falla online, intentar desde caché offline
+        const cached = await db.branches.toArray();
+        if (cached.length > 0) {
+          console.log('📦 Usando sucursales en caché:', cached);
+          return cached;
+        }
+        
+        throw err;
+      }
+    },
+    staleTime: 1000 * 60 * 60, // 1 hora
+    gcTime: 1000 * 60 * 60 * 24, // 24 horas en caché
   });
   
   // --- HELPERS ---
@@ -208,6 +231,13 @@ export default function Users() {
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    
+    // Validar que se seleccionó una sucursal
+    if (!formData.branch_id) {
+      setErrorMsg('Debe seleccionar una sucursal');
+      return;
+    }
+    
     saveMutation.mutate(formData);
   };
 
@@ -220,6 +250,23 @@ export default function Users() {
         {isOnline ? <Wifi size={20} /> : <WifiOff size={20} />}
         {!isOnline && <span className="text-xs font-bold pr-1">Offline</span>}
       </div>
+
+      {/* Alerta de Modo Offline */}
+      {!isOnline && showOfflineAlert && (
+        <div className="bg-blue-50 border border-blue-200 text-blue-800 p-4 rounded-lg flex items-start gap-3">
+          <WifiOff size={20} className="flex-shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="font-semibold text-sm">Modo Offline Activo</p>
+            <p className="text-sm">Los usuarios creados o editados se guardarán localmente y se sincronizarán con el servidor cuando regrese la conexión a internet.</p>
+          </div>
+          <button
+            onClick={() => setShowOfflineAlert(false)}
+            className="text-blue-400 hover:text-blue-600 flex-shrink-0 transition-colors"
+          >
+            <X size={18} />
+          </button>
+        </div>
+      )}
       
       {/* Encabezado */}
       <div className="flex justify-between items-center">
@@ -358,13 +405,17 @@ export default function Users() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Sucursal ID</label>
-                  <input 
-                    type="number" 
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none"
-                    value={formData.branch_id}
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Sucursal</label>
+                  <select 
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none bg-white"
+                    value={formData.branch_id || ''}
                     onChange={e => setFormData({...formData, branch_id: Number(e.target.value)})}
-                  />
+                  >
+                    <option value="">Seleccionar sucursal</option>
+                    {branches.map(b => (
+                      <option key={b.id} value={b.id}>{b.name}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
 

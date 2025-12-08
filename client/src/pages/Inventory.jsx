@@ -13,18 +13,35 @@ export default function Inventory() {
   const queryClient = useQueryClient();
   const [selectedBranchId, setSelectedBranchId] = useState(user?.branch_id || 1);
 
-  // 1. QUERY DE SUCURSALES
+  // 1. QUERY DE SUCURSALES - Con caché offline
   const { data: branches = [] } = useQuery({
     queryKey: ['branches'],
     queryFn: async () => {
       try {
         const res = await api.get('/branches');
-        return Array.isArray(res.data) ? res.data : [];
+        const data = Array.isArray(res.data) ? res.data : [];
+        
+        // Guardar en IndexedDB para acceso offline
+        await db.branches.bulkPut(data);
+        console.log('✅ Sucursales cargadas y cacheadas:', data);
+        
+        return data;
       } catch (e) {
+        console.warn("⚠️ Error cargando sucursales online, intentando desde caché:", e.message);
+        
+        // Si falla online, intentar desde caché offline
+        const cached = await db.branches.toArray();
+        if (cached.length > 0) {
+          console.log('📦 Usando sucursales en caché:', cached);
+          return cached;
+        }
+        
         console.error("Error cargando sucursales:", e);
         return [];
       }
-    }
+    },
+    staleTime: 1000 * 60 * 60, // 1 hora
+    gcTime: 1000 * 60 * 60 * 24, // 24 horas en caché
   });
 
   // 2. USAR EL HOOK OFFLINE-FIRST
@@ -36,6 +53,7 @@ export default function Inventory() {
   const [errorMsg, setErrorMsg] = useState('');
   const [editingProduct, setEditingProduct] = useState(null);
   const [formData, setFormData] = useState({ sku: '', name: '', price: '', min_stock_alert: 5 });
+  const [showOfflineAlert, setShowOfflineAlert] = useState(true);
 
   const closeModal = () => {
     setIsModalOpen(false);
@@ -214,6 +232,23 @@ export default function Inventory() {
         {isOnline ? <Wifi size={20} /> : <WifiOff size={20} />}
         {!isOnline && <span className="text-xs font-bold pr-1">Offline</span>}
       </div>
+
+      {/* Alerta de Modo Offline */}
+      {!isOnline && showOfflineAlert && (
+        <div className="bg-blue-50 border border-blue-200 text-blue-800 p-4 rounded-lg flex items-start gap-3">
+          <WifiOff size={20} className="flex-shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="font-semibold text-sm">Modo Offline Activo</p>
+            <p className="text-sm">Los cambios que realices se guardarán localmente y se sincronizarán automáticamente cuando regrese la conexión a internet.</p>
+          </div>
+          <button
+            onClick={() => setShowOfflineAlert(false)}
+            className="text-blue-400 hover:text-blue-600 flex-shrink-0 transition-colors"
+          >
+            <X size={18} />
+          </button>
+        </div>
+      )}
 
       {/* Encabezado */}
       <div className="flex justify-between items-center">
