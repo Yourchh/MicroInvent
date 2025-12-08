@@ -12,6 +12,7 @@ export default function Settings() {
   const [isBranchModalOpen, setIsBranchModalOpen] = useState(false);
   const [confirmText, setConfirmText] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [newBranchName, setNewBranchName] = useState('');
   const [newBranchAddress, setNewBranchAddress] = useState('');
@@ -76,7 +77,9 @@ export default function Settings() {
       setTimeout(() => setSuccessMsg(''), 3000);
     },
     onError: (err) => {
-      alert(err.response?.data?.message || 'Error al eliminar la sucursal');
+      const errorMsg = err.response?.data?.message || err.message || 'Error al eliminar la sucursal';
+      setErrorMsg(errorMsg);
+      setTimeout(() => setErrorMsg(''), 5000);
     }
   });
 
@@ -148,6 +151,16 @@ export default function Settings() {
           <div>
             <p className="font-bold">¡Éxito!</p>
             <p>{successMsg}</p>
+          </div>
+        </div>
+      )}
+
+      {errorMsg && (
+        <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-xl flex items-center gap-3 animate-in fade-in slide-in-from-top-2">
+          <AlertTriangle size={24} />
+          <div>
+            <p className="font-bold">Error</p>
+            <p>{errorMsg}</p>
           </div>
         </div>
       )}
