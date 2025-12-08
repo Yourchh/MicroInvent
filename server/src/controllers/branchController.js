@@ -101,7 +101,9 @@ exports.deleteBranch = async (req, res) => {
 
     // No permitir eliminar la sucursal matriz (id = 1)
     if (parseInt(id) === 1) {
-      return res.status(400).json({ message: 'No se puede eliminar la sucursal matriz' });
+      return res.status(400).json({ 
+        message: 'No se puede eliminar la sucursal matriz porque es la sede principal del sistema y contiene usuarios y datos críticos. Esta sucursal es fundamental para el funcionamiento del aplicativo.' 
+      });
     }
 
     const existing = await Branch.findById(id);
