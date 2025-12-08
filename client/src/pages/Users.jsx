@@ -29,7 +29,7 @@ export default function Users() {
   });
 
   // 1. CARGAR USUARIOS DESDE HOOK OFFLINE-FIRST
-  const { users, isLoading: isSyncing, isOnline } = useUserSync(); 
+  const { users, isLoading: isSyncing, isOnline } = useUserSync();
 
   // Cargar Sucursales
   const { data: branches = [] } = useQuery({

@@ -2,6 +2,8 @@ import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { LayoutDashboard, Package, FileText, LogOut, Users } from 'lucide-react';
 import { Settings as SettingsIcon } from 'lucide-react';
+import OfflineAlert from './OfflineAlert';
+import { useState, useEffect } from 'react';
 
 // eslint-disable-next-line no-unused-vars
 const NavItem = ({ to, icon: Icon, label }) => {
@@ -25,6 +27,20 @@ const NavItem = ({ to, icon: Icon, label }) => {
 
 export default function Layout() {
   const { user, logout } = useAuth();
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
   
   const isAdmin = user?.role === 'admin';
   const canViewReports = ['admin', 'manager'].includes(user?.role);
@@ -69,6 +85,7 @@ export default function Layout() {
       {/* Main Content */}
       <main className="flex-1 ml-64 p-8">
         <div className="max-w-5xl mx-auto">
+          <OfflineAlert isOnline={isOnline} />
           <Outlet />
         </div>
       </main>
