@@ -20,10 +20,10 @@ export const AuthProvider = ({ children }) => {
   // (A menos que quieras validar el token con el backend al inicio)
   const [loading, setLoading] = useState(false);
 
-  const login = async (username, password) => {
+  const login = async (username, password, userType) => {
     setLoading(true);
     try {
-      const { data } = await api.post('/auth/login', { username, password });
+      const { data } = await api.post('/auth/login', { username, password, userType });
       
       // Si requiere selección de sucursal, retornar tempToken
       if (data.requiresBranchSelection) {
@@ -31,11 +31,12 @@ export const AuthProvider = ({ children }) => {
         return {
           success: true,
           requiresBranchSelection: true,
-          tempToken: data.tempToken
+          tempToken: data.tempToken,
+          user: data.user
         };
       }
 
-      // Flujo normal (legacy o sin cambios)
+      // Login directo (empleado)
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
       

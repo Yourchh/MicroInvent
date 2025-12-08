@@ -25,7 +25,10 @@ exports.register = async (req, res) => {
 
 exports.login = async (req, res) => {
   try {
-    const { username, password } = req.body;
+    const { username, password, userType } = req.body; // userType: 'employee' o 'admin'
+    
+    console.log(`🔐 Intento de login: ${username} como ${userType}`);
+    
     const user = await User.findByUsername(username);
     
     if (!user) return res.status(400).json({ message: 'Credenciales inválidas' });
@@ -33,26 +36,96 @@ exports.login = async (req, res) => {
     const validPass = await bcrypt.compare(password, user.password_hash);
     if (!validPass) return res.status(400).json({ message: 'Credenciales inválidas' });
 
-    // Generar token temporal sin branch_id (para seleccionar sucursal después)
-    const tempToken = jwt.sign({ id: user.id, role: user.role, temp: true }, process.env.JWT_SECRET, { expiresIn: '15m' });
-    
-    res.json({ 
-      tempToken, 
-      user: { id: user.id, username: user.username, role: user.role },
-      requiresBranchSelection: true 
-    });
+    // EMPLEADO: Login directo (ya tiene sucursal asignada)
+    if (userType === 'employee') {
+      if (user.role !== 'employee') {
+        return res.status(403).json({ message: 'Este usuario no es un empleado. Use login de administrador.' });
+      }
+      
+      if (!user.branch_id) {
+        return res.status(400).json({ message: 'Empleado sin sucursal asignada. Contacte al administrador.' });
+      }
+
+      // Verificar si sucursal ya tiene sesión activa
+      const activeSession = await Session.isActiveInBranch(user.branch_id, 30);
+      if (activeSession && activeSession.user_id !== user.id) {
+        const branch = await Branch.findById(user.branch_id);
+        return res.status(409).json({ 
+          message: `La sucursal "${branch.name}" ya tiene una sesión activa del usuario "${activeSession.username}".`,
+          activeUser: activeSession.username
+        });
+      }
+
+      // Obtener nombre de sucursal
+      const branch = await Branch.findById(user.branch_id);
+
+      // Generar token con branch_id
+      const token = jwt.sign(
+        { id: user.id, role: user.role, branch_id: user.branch_id },
+        process.env.JWT_SECRET,
+        { expiresIn: '8h' }
+      );
+
+      // Crear sesión
+      await Session.create(user.id, user.branch_id, token);
+
+      console.log(`✅ Empleado ${username} logueado en sucursal ${branch.name}`);
+
+      return res.json({
+        token,
+        user: {
+          id: user.id,
+          username: user.username,
+          role: user.role,
+          branch_id: user.branch_id,
+          branch_name: branch.name
+        }
+      });
+    }
+
+    // ADMIN/SUPERADMIN: Necesita seleccionar sucursal
+    if (userType === 'admin') {
+      if (user.role === 'employee') {
+        return res.status(403).json({ message: 'Este usuario es un empleado. Use login de empleado.' });
+      }
+
+      // Generar token temporal para seleccionar sucursal
+      const tempToken = jwt.sign(
+        { id: user.id, role: user.role, branch_id: user.branch_id, temp: true },
+        process.env.JWT_SECRET,
+        { expiresIn: '15m' }
+      );
+
+      console.log(`🔑 Admin/SuperAdmin ${username} requiere seleccionar sucursal`);
+
+      return res.json({ 
+        tempToken, 
+        user: { 
+          id: user.id, 
+          username: user.username, 
+          role: user.role,
+          assigned_branch_id: user.branch_id // Para admin, es su sucursal permitida
+        },
+        requiresBranchSelection: true 
+      });
+    }
+
+    return res.status(400).json({ message: 'Tipo de usuario no válido. Use "employee" o "admin".' });
   } catch (err) {
+    console.error('❌ Error en login:', err);
     res.status(500).json({ error: err.message });
   }
 };
 
-// NUEVO: Seleccionar sucursal después del login
+// Seleccionar sucursal después del login (solo para admin/superadmin)
 exports.selectBranch = async (req, res) => {
   try {
-    const { branch_id, adminUsername, adminPassword } = req.body;
+    const { branch_id } = req.body;
     const userId = req.user.id;
+    const userRole = req.user.role;
+    const userAssignedBranch = req.user.branch_id;
 
-    console.log(`📍 Usuario ${userId} intentando seleccionar sucursal ${branch_id}`);
+    console.log(`📍 Usuario ${userId} (${userRole}) intentando seleccionar sucursal ${branch_id}`);
 
     // Validar que la sucursal existe
     const branch = await Branch.findById(branch_id);
@@ -60,18 +133,21 @@ exports.selectBranch = async (req, res) => {
       return res.status(400).json({ message: 'La sucursal no existe' });
     }
 
-    // Validar credenciales del admin
-    const admin = await User.findByUsername(adminUsername);
-    if (!admin || admin.role !== 'admin') {
-      return res.status(403).json({ message: 'Credenciales de administrador inválidas' });
+    // Validar permisos según rol
+    if (userRole === 'admin') {
+      // Admin solo puede seleccionar su sucursal asignada
+      if (userAssignedBranch !== branch_id) {
+        return res.status(403).json({ 
+          message: `Como administrador, solo puedes acceder a tu sucursal asignada.`,
+          allowedBranchId: userAssignedBranch
+        });
+      }
+    } else if (userRole !== 'superadmin') {
+      // Solo superadmin y admin pueden usar este endpoint
+      return res.status(403).json({ message: 'No tienes permisos para seleccionar sucursal' });
     }
 
-    const validAdminPass = await bcrypt.compare(adminPassword, admin.password_hash);
-    if (!validAdminPass) {
-      return res.status(403).json({ message: 'Credenciales de administrador inválidas' });
-    }
-
-    console.log(`✅ Admin verificado. Verificando sesión activa en sucursal ${branch_id}`);
+    console.log(`✅ Permisos validados. Verificando sesión activa en sucursal ${branch_id}`);
 
     // Verificar si ya existe una sesión activa en esta sucursal (últimos 30 minutos)
     const activeSession = await Session.isActiveInBranch(branch_id, 30);
@@ -88,7 +164,7 @@ exports.selectBranch = async (req, res) => {
 
     // Generar token definitivo con branch_id
     const token = jwt.sign(
-      { id: userId, role: req.user.role, branch_id },
+      { id: userId, role: userRole, branch_id },
       process.env.JWT_SECRET,
       { expiresIn: '8h' }
     );

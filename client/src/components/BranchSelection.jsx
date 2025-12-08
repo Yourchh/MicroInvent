@@ -1,16 +1,18 @@
 import { useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import api from '../api/axios';
-import { MapPin, Lock, AlertCircle, Loader } from 'lucide-react';
+import { MapPin, AlertCircle, Loader } from 'lucide-react';
 
-export default function BranchSelection({ tempToken, onBranchSelected }) {
+export default function BranchSelection({ tempToken, userData, onBranchSelected }) {
   const [selectedBranch, setSelectedBranch] = useState('');
-  const [adminUsername, setAdminUsername] = useState('');
-  const [adminPassword, setAdminPassword] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
 
+  // Determinar si es superadmin o admin
+  const isSuperAdmin = userData?.role === 'superadmin';
+  const assignedBranchId = userData?.assigned_branch_id;
+
   // Cargar sucursales públicamente
-  const { data: branches = [], isLoading } = useQuery({
+  const { data: allBranches = [], isLoading } = useQuery({
     queryKey: ['branches-public'],
     queryFn: async () => {
       const response = await api.get('/branches/public');
@@ -18,10 +20,14 @@ export default function BranchSelection({ tempToken, onBranchSelected }) {
     },
   });
 
+  // Filtrar sucursales según el rol
+  const branches = isSuperAdmin 
+    ? allBranches 
+    : allBranches.filter(b => b.id === assignedBranchId);
+
   // Mutación para seleccionar sucursal
   const selectMutation = useMutation({
     mutationFn: async () => {
-      // Usar tempToken en el header
       const config = {
         headers: {
           Authorization: `Bearer ${tempToken}`
@@ -30,22 +36,16 @@ export default function BranchSelection({ tempToken, onBranchSelected }) {
       
       const response = await api.post(
         '/auth/select-branch',
-        {
-          branch_id: Number(selectedBranch),
-          adminUsername,
-          adminPassword
-        },
+        { branch_id: Number(selectedBranch) },
         config
       );
       return response.data;
     },
     onSuccess: (data) => {
       console.log('✅ Sucursal seleccionada:', data);
-      setErrorMsg(''); // Limpiar error
-      // Guardar token y datos del usuario
+      setErrorMsg('');
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
-      // Notificar al componente padre
       onBranchSelected(data);
     },
     onError: (err) => {
@@ -59,8 +59,6 @@ export default function BranchSelection({ tempToken, onBranchSelected }) {
       }
       
       setErrorMsg(msg);
-      // Limpiar contraseña para reintentar
-      setAdminPassword('');
     }
   });
 
@@ -70,11 +68,6 @@ export default function BranchSelection({ tempToken, onBranchSelected }) {
     
     if (!selectedBranch) {
       setErrorMsg('Debe seleccionar una sucursal');
-      return;
-    }
-    
-    if (!adminUsername || !adminPassword) {
-      setErrorMsg('Debe ingesar credenciales del administrador');
       return;
     }
     
@@ -88,9 +81,13 @@ export default function BranchSelection({ tempToken, onBranchSelected }) {
         <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4">
           <div className="flex items-center gap-3">
             <MapPin size={24} className="text-white" />
-            <h1 className="text-2xl font-bold text-white">Seleccionar Sucursal</h1>
+            <div>
+              <h1 className="text-2xl font-bold text-white">Seleccionar Sucursal</h1>
+              <p className="text-blue-100 text-sm mt-0.5">
+                {isSuperAdmin ? 'Puedes acceder a todas las sucursales' : 'Selecciona tu sucursal asignada'}
+              </p>
+            </div>
           </div>
-          <p className="text-blue-100 text-sm mt-1">Elige dónde trabajarás hoy</p>
         </div>
 
         {/* Form */}
@@ -108,13 +105,13 @@ export default function BranchSelection({ tempToken, onBranchSelected }) {
           {/* Seleccionar Sucursal */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">
-              Sucursal
+              Sucursal {isSuperAdmin && <span className="text-blue-600 ml-1">(SuperAdmin - Todas)</span>}
             </label>
             <select
               value={selectedBranch}
               onChange={(e) => {
                 setSelectedBranch(e.target.value);
-                setErrorMsg(''); // Limpiar error al cambiar sucursal
+                setErrorMsg('');
               }}
               className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white"
             >
@@ -129,54 +126,6 @@ export default function BranchSelection({ tempToken, onBranchSelected }) {
                 ))
               )}
             </select>
-          </div>
-
-          {/* Divider */}
-          <div className="relative py-2">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-slate-200"></div>
-            </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-white text-slate-500 font-medium">
-                Verificación Admin
-              </span>
-            </div>
-          </div>
-
-          {/* Admin Username */}
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
-              Usuario Admin
-            </label>
-            <input
-              type="text"
-              required
-              placeholder="Usuario del administrador"
-              value={adminUsername}
-              onChange={(e) => setAdminUsername(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-            />
-          </div>
-
-          {/* Admin Password */}
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
-              Contraseña Admin
-            </label>
-            <input
-              type="password"
-              required
-              placeholder="Contraseña del administrador"
-              value={adminPassword}
-              onChange={(e) => setAdminPassword(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-            />
-          </div>
-
-          {/* Info */}
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-700 flex items-start gap-2">
-            <Lock size={16} className="flex-shrink-0 mt-0.5" />
-            <p>Por seguridad, necesitamos verificar con un administrador autorizado.</p>
           </div>
 
           {/* Submit Button */}

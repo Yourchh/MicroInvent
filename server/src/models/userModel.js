@@ -7,7 +7,7 @@ const User = {
     return rows[0];
   },
   
-  findById: async (id) => { // <--- NUEVO
+  findById: async (id) => {
     const { rows } = await pool.query('SELECT * FROM users WHERE id = $1', [id]);
     return rows[0];
   },
@@ -22,6 +22,29 @@ const User = {
     `;
     const { rows } = await pool.query(query);
     return rows;
+  },
+
+  // --- VALIDACIONES DE ROL ---
+  isSuperAdmin: (user) => {
+    return user && user.role === 'superadmin';
+  },
+
+  isAdmin: (user) => {
+    return user && (user.role === 'admin' || user.role === 'superadmin');
+  },
+
+  isEmployee: (user) => {
+    return user && user.role === 'employee';
+  },
+
+  // Verifica si un admin tiene permiso sobre una sucursal específica
+  canManageBranch: (user, branchId) => {
+    if (!user) return false;
+    // Superadmin puede todo
+    if (user.role === 'superadmin') return true;
+    // Admin solo puede su sucursal asignada
+    if (user.role === 'admin') return user.branch_id === branchId;
+    return false;
   },
 
   // --- VALIDACIONES ---
@@ -42,7 +65,7 @@ const User = {
     return rows[0];
   },
 
-  // --- EDITAR (NUEVO: Permite cambiar todo) ---
+  // --- EDITAR ---
   update: async (id, username, passwordHash, role, branch_id) => {
     const query = `
       UPDATE users 
@@ -54,7 +77,6 @@ const User = {
     return rows[0];
   },
 
-  // --- MANTENER ESTE POR COMPATIBILIDAD (Opcional) ---
   updateRole: async (id, newRole) => {
     const query = 'UPDATE users SET role = $1 WHERE id = $2 RETURNING id';
     const { rows } = await pool.query(query, [newRole, id]);

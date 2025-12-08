@@ -1,5 +1,5 @@
 -- database/init.sql
-CREATE TYPE role_type AS ENUM ('admin', 'manager', 'employee');
+CREATE TYPE role_type AS ENUM ('superadmin', 'admin', 'employee');
 CREATE TYPE transfer_status AS ENUM ('PENDING', 'IN_TRANSIT', 'COMPLETED', 'CANCELLED');
 CREATE TYPE movement_type AS ENUM ('IN', 'OUT', 'ADJUSTMENT', 'TRANSFER_IN', 'TRANSFER_OUT');
 
@@ -15,7 +15,7 @@ CREATE TABLE users (
     username VARCHAR(50) UNIQUE NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
     role role_type DEFAULT 'employee',
-    branch_id INT REFERENCES branches(id),
+    branch_id INT REFERENCES branches(id) ON DELETE SET NULL, -- Nullable: superadmin no tiene sucursal, admin tiene sucursal específica, employee tiene sucursal asignada
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
