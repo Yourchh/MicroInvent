@@ -11,13 +11,23 @@ exports.getUsers = async (req, res) => {
       return res.json(users);
     }
     
-    // Admin solo ve usuarios de su sucursal
+    // Admin ve solo empleados y gerentes de su sucursal (NO otros admins)
     if (currentUser.role === 'admin') {
       const users = await User.findByBranch(currentUser.branch_id);
-      return res.json(users);
+      // Filtrar: solo employees y managers de su sucursal
+      const filtered = users.filter(u => ['employee', 'manager'].includes(u.role));
+      return res.json(filtered);
     }
     
-    // Otros roles no tienen acceso (pero ya está protegido por middleware)
+    // Gerente ve solo empleados de su sucursal
+    if (currentUser.role === 'manager') {
+      const users = await User.findByBranch(currentUser.branch_id);
+      // Filtrar: solo employees de su sucursal
+      const filtered = users.filter(u => u.role === 'employee');
+      return res.json(filtered);
+    }
+    
+    // Empleados no tienen acceso
     res.status(403).json({ message: 'No tienes permiso para ver usuarios' });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -44,9 +54,24 @@ exports.createUser = async (req, res) => {
     }
 
     if (creatorUser.role === 'admin') {
-      // Admin solo puede crear empleados de su sucursal
+      // Admin puede crear empleados y gerentes de su sucursal
+      if (!['employee', 'manager'].includes(role)) {
+        return res.status(403).json({ message: 'Como admin, solo puedes crear empleados y gerentes. Para crear admins contacta al superadmin.' });
+      }
+      
+      if (!branch_id) {
+        return res.status(400).json({ message: 'Los empleados y gerentes deben tener una sucursal asignada' });
+      }
+      
+      if (branch_id !== creatorUser.branch_id) {
+        return res.status(403).json({ message: 'Como admin, solo puedes crear empleados y gerentes de tu sucursal asignada' });
+      }
+    }
+
+    if (creatorUser.role === 'manager') {
+      // Gerente solo puede crear empleados de su sucursal
       if (role !== 'employee') {
-        return res.status(403).json({ message: 'Como admin, solo puedes crear empleados. Para crear admins contacta al superadmin.' });
+        return res.status(403).json({ message: 'Como gerente, solo puedes crear empleados. Para crear otros tipos de usuarios contacta al admin de tu sucursal.' });
       }
       
       if (!branch_id) {
@@ -54,7 +79,7 @@ exports.createUser = async (req, res) => {
       }
       
       if (branch_id !== creatorUser.branch_id) {
-        return res.status(403).json({ message: 'Como admin, solo puedes crear empleados de tu sucursal asignada' });
+        return res.status(403).json({ message: 'Como gerente, solo puedes crear empleados de tu sucursal asignada' });
       }
     }
 
@@ -64,8 +89,8 @@ exports.createUser = async (req, res) => {
         return res.status(400).json({ message: 'Los administradores deben tener una sucursal asignada' });
       }
       
-      if (role === 'employee' && !branch_id) {
-        return res.status(400).json({ message: 'Los empleados deben tener una sucursal asignada' });
+      if ((role === 'employee' || role === 'manager') && !branch_id) {
+        return res.status(400).json({ message: 'Los empleados y gerentes deben tener una sucursal asignada' });
       }
 
       if (role === 'superadmin' && branch_id) {
@@ -111,16 +136,29 @@ exports.updateUser = async (req, res) => {
     const targetUser = await User.findById(id);
     if (!targetUser) return res.status(404).json({ message: 'Usuario no encontrado' });
 
-    // 2. Validar permisos según rol del editor
+    // 2. Solo SuperAdmin puede editar Admins
+    if (targetUser.role === 'admin' && editorUser.role !== 'superadmin') {
+      return res.status(403).json({ message: 'Solo el SuperAdmin puede editar administradores' });
+    }
+
+    // 3. Nadie puede editar su propio usuario (excepto SuperAdmin)
+    if (parseInt(id) === editorUser.id && editorUser.role !== 'superadmin') {
+      return res.status(403).json({ message: 'No puedes editar tu propio usuario' });
+    }
+
+    // 4. Admin puede editar empleados y gerentes de su sucursal
     if (editorUser.role === 'admin') {
-      // Admin solo puede editar usuarios de su sucursal
       if (targetUser.branch_id !== editorUser.branch_id) {
         return res.status(403).json({ message: 'Solo puedes editar usuarios de tu sucursal' });
       }
       
-      // Admin solo puede editar empleados, no puede cambiar roles ni sucursal
-      if (role && role !== 'employee') {
-        return res.status(403).json({ message: 'Solo puedes editar empleados' });
+      // Admin solo puede editar empleados y gerentes, no puede cambiar roles ni sucursal
+      if (!['employee', 'manager'].includes(targetUser.role)) {
+        return res.status(403).json({ message: 'Solo puedes editar empleados y gerentes' });
+      }
+      
+      if (role && role !== targetUser.role) {
+        return res.status(403).json({ message: 'No puedes cambiar el rol de un usuario' });
       }
       
       if (branch_id && branch_id !== editorUser.branch_id) {
@@ -128,16 +166,21 @@ exports.updateUser = async (req, res) => {
       }
     }
 
-    // 3. Si envían contraseña nueva, la encriptamos. Si no, mantenemos la actual.
+    // 5. Gerente no puede editar nada
+    if (editorUser.role === 'manager') {
+      return res.status(403).json({ message: 'Los gerentes no tienen permiso para editar usuarios' });
+    }
+
+    // 6. Si envían contraseña nueva, la encriptamos. Si no, mantenemos la actual.
     let passwordHash = targetUser.password_hash;
     if (password && password.trim() !== "") {
       const salt = await bcrypt.genSalt(10);
       passwordHash = await bcrypt.hash(password, salt);
     }
 
-    // 4. Actualizar (admin solo puede cambiar username y password)
-    const finalRole = editorUser.role === 'admin' ? targetUser.role : (role || targetUser.role);
-    const finalBranchId = editorUser.role === 'admin' ? targetUser.branch_id : (branch_id !== undefined ? branch_id : targetUser.branch_id);
+    // 7. Actualizar (respetando restricciones)
+    const finalRole = editorUser.role === 'superadmin' ? (role || targetUser.role) : targetUser.role;
+    const finalBranchId = editorUser.role === 'superadmin' ? (branch_id !== undefined ? branch_id : targetUser.branch_id) : targetUser.branch_id;
     
     const updatedUser = await User.update(id, username, passwordHash, finalRole, finalBranchId);
     res.json(updatedUser);
@@ -157,21 +200,30 @@ exports.deleteUser = async (req, res) => {
       return res.status(400).json({ message: 'No puedes eliminar tu propia cuenta' });
     }
     
-    // Validar permisos según rol
+    const targetUser = await User.findById(id);
+    if (!targetUser) {
+      return res.status(404).json({ message: 'Usuario no encontrado' });
+    }
+    
+    // Solo SuperAdmin puede eliminar Admins
+    if (targetUser.role === 'admin' && deleterUser.role !== 'superadmin') {
+      return res.status(403).json({ message: 'Solo el SuperAdmin puede eliminar administradores' });
+    }
+
+    // Admin puede eliminar empleados y gerentes de su sucursal
     if (deleterUser.role === 'admin') {
-      const targetUser = await User.findById(id);
-      if (!targetUser) {
-        return res.status(404).json({ message: 'Usuario no encontrado' });
-      }
-      
-      // Admin solo puede eliminar empleados de su sucursal
       if (targetUser.branch_id !== deleterUser.branch_id) {
         return res.status(403).json({ message: 'Solo puedes eliminar usuarios de tu sucursal' });
       }
       
-      if (targetUser.role !== 'employee') {
-        return res.status(403).json({ message: 'Solo puedes eliminar empleados' });
+      if (!['employee', 'manager'].includes(targetUser.role)) {
+        return res.status(403).json({ message: 'Solo puedes eliminar empleados y gerentes' });
       }
+    }
+    
+    // Gerente no puede eliminar nada
+    if (deleterUser.role === 'manager') {
+      return res.status(403).json({ message: 'Los gerentes no tienen permiso para eliminar usuarios' });
     }
     
     await User.delete(id);
@@ -180,3 +232,5 @@ exports.deleteUser = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
+module.exports = exports;
