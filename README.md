@@ -81,9 +81,11 @@ El desarrollo se divide por dominios funcionales para mantener la independencia 
 | **Jorge** | **Inventario por Sucursal** | CRUD de productos, Visualización de stock en tiempo real, Manejo de alertas de stock bajo, Filtrado por sucursal |
 | **Jorge** | **Gestión de Usuarios** | CRUD de usuarios, Asignación de roles, Restricciones por sucursal para admins |
 | **Jorge** | **Configuración del Sistema** | Panel de configuración exclusivo para SuperAdmin, Reseteo de sistema, Eliminación de sucursales |
-| **Angel** | **Reportes y Análisis** | Generación de reportes de movimientos, Análisis de stock, Exportación de datos |
-| **Angel** | **Dashboard y Métricas** | Visualización de KPIs, Gráficos de inventario, Productos con stock bajo |
-| **Angel** | **Modo Offline & Sincronización** | Implementación de cola de sincronización, Manejo de conflictos, IndexedDB para almacenamiento local |
+| **Jorge** | **Modo Offline & Sincronización** | Implementación de cola de sincronización, Manejo de conflictos, IndexedDB para almacenamiento local, Service Workers |
+| **Jorge** | **Reportes y Análisis** | Generación de reportes de movimientos, Análisis de stock, Exportación de datos |
+| **Jorge** | **Dashboard y Métricas** | Visualización de KPIs, Gráficos de inventario, Productos con stock bajo |
+| **Angel** | **Transferencias entre Sucursales** | Lógica de negocio para mover stock entre sucursales (Solicitud → Aprobación → Envío → Recepción) con transacciones ACID |
+| **Angel** | **Registro de Entradas/Salidas** | Módulo de registro de movimientos de inventario (Compras/Ventas/Mermas/Ajustes), Auditoría de cambios |
 
 ---
 
@@ -319,6 +321,26 @@ MicroInvent implementa un sistema de roles jerárquico con permisos específicos
 - Generación de reportes de movimientos
 - Análisis de tendencias
 - Exportación de datos
+
+#### 🔄 Transferencias entre Sucursales (Próximamente)
+
+**Desarrollado por: Angel**
+
+- Solicitar transferencia de productos a otra sucursal
+- Aprobar/rechazar solicitudes de transferencia
+- Registrar envío de productos
+- Confirmar recepción en sucursal destino
+- Historial de transferencias
+
+#### 📝 Registro de Entradas/Salidas (Próximamente)
+
+**Desarrollado por: Angel**
+
+- Registrar compras (entradas)
+- Registrar ventas (salidas)
+- Registrar mermas y ajustes
+- Auditoría completa de movimientos
+- Trazabilidad de cambios en inventario
 
 ### Modo Offline
 
