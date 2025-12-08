@@ -14,7 +14,7 @@ export default function Login() {
   const [tempToken, setTempToken] = useState('');
   const [userData, setUserData] = useState(null);
   const [requiresBranchSelection, setRequiresBranchSelection] = useState(false);
-  const { login } = useAuth();
+  const { login, updateUser } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
@@ -39,8 +39,12 @@ export default function Login() {
     }
   };
 
-  const handleBranchSelected = () => {
-    console.log('✅ Sucursal seleccionada, redirigiendo...');
+  const handleBranchSelected = (data) => {
+    console.log('✅ Sucursal seleccionada, redirigiendo...', data);
+    // Actualizar el usuario en el contexto
+    if (data?.user) {
+      updateUser(data.user);
+    }
     navigate('/dashboard');
   };
 
