@@ -180,10 +180,22 @@ exports.updateUser = async (req, res) => {
     }
 
     // 7. Actualizar (respetando restricciones)
-    const finalRole = editorUser.role === 'superadmin' ? (role || targetUser.role) : targetUser.role;
+    // SuperAdmin: puede cambiar a cualquier rol
+    // Admin: puede cambiar solo entre employee y manager
+    // Manager: no puede cambiar nada
+    let finalRole = targetUser.role;
+    if (role) {
+      if (editorUser.role === 'superadmin') {
+        finalRole = role;
+      } else if (editorUser.role === 'admin' && ['employee', 'manager'].includes(role)) {
+        finalRole = role;
+      }
+    }
+    
     const finalBranchId = editorUser.role === 'superadmin' ? (branch_id !== undefined ? branch_id : targetUser.branch_id) : targetUser.branch_id;
     
     const updatedUser = await User.update(id, username, passwordHash, finalRole, finalBranchId);
+    console.log(`✅ Usuario actualizado por ${editorUser.role} ${editorUser.username}:`, updatedUser);
     res.json(updatedUser);
 
   } catch (err) {
