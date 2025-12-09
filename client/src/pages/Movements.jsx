@@ -53,12 +53,14 @@ export default function Movements() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['movements'] });
+      queryClient.invalidateQueries({ queryKey: ['syncInventory'] });
       setShowModal(false);
       setFormData({ product_id: '', type: 'IN', quantity: '', reason: '' });
       alert('✅ Movimiento registrado exitosamente');
     },
     onError: (err) => {
-      alert('❌ Error: ' + (err.response?.data?.message || err.message));
+      const errorMsg = err.response?.data?.message || err.message;
+      alert(errorMsg);
     }
   });
 

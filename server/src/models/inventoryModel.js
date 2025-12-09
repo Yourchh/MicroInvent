@@ -90,7 +90,7 @@ const Inventory = {
       );
 
       if (check.rows.length === 0 || check.rows[0].quantity < quantity) {
-        throw new Error(`Stock insuficiente. Disponible: ${check.rows[0]?.quantity || 0}`);
+        throw new Error('Error, El stock actual no puede surtir esa venta/salida');
       }
 
       const currentRow = check.rows[0];

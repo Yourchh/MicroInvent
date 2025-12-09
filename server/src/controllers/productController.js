@@ -34,6 +34,8 @@ exports.createProduct = async (req, res) => {
   try {
     const { sku, name, price, min_stock_alert, initial_stock = 0, min_stock = 0, max_stock = null, branch_id } = req.body;
 
+    console.log('📦 Crear producto payload:', { sku, name, price, min_stock_alert, initial_stock, min_stock, max_stock, branch_id, userBranch: req.user?.branch_id });
+
     // Validaciones básicas de stock
     if (initial_stock < 0) {
       return res.status(400).json({ message: 'El stock inicial no puede ser negativo' });

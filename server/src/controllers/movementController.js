@@ -27,38 +27,49 @@ exports.createMovement = async (req, res) => {
       return res.status(404).json({ message: 'Producto no encontrado' });
     }
 
-    // Crear movimiento
-    const movement = await Movement.create(
-      branchId,
-      product_id,
-      userId,
-      type,
-      quantity,
-      reason || null
-    );
+    // Procesar según tipo, asegurando que si falla inventario no se registra el movimiento
+    let updatedInventory = null;
+    let movement = null;
 
-    // Actualizar inventario
     if (type === 'IN') {
-      // Entrada (Compra)
-      await InventoryModel.increment(branchId, product_id, quantity);
+      updatedInventory = await InventoryModel.increment(branchId, product_id, quantity);
+      movement = await Movement.create(branchId, product_id, userId, type, quantity, reason || null);
     } else if (type === 'OUT') {
-      // Salida (Venta)
-      await InventoryModel.decrement(branchId, product_id, quantity);
+      // Validar stock suficiente para salida
+      const current = await InventoryModel.findById(branchId, product_id);
+      const currentQty = current?.quantity || 0;
+      console.log(`🔍 Validando stock para producto ${product_id}: disponible=${currentQty}, solicitado=${quantity}`);
+      if (currentQty < quantity) {
+        console.log(`❌ Stock insuficiente detectado`);
+        return res.status(400).json({ message: 'Error, El stock actual no puede surtir esa venta/salida' });
+      }
+      // El decrement también valida, pero si pasa la primera validación debería funcionar
+      console.log(`✅ Stock suficiente, procediendo con decrement`);
+      updatedInventory = await InventoryModel.decrement(branchId, product_id, quantity);
+      movement = await Movement.create(branchId, product_id, userId, type, quantity, reason || null);
     } else if (type === 'ADJUSTMENT') {
-      // Ajuste (puede ser positivo o negativo)
       const current = await InventoryModel.findById(branchId, product_id);
       const newQuantity = (current?.quantity || 0) + quantity;
-      await InventoryModel.adjust(branchId, product_id, newQuantity);
+      if (newQuantity < 0) {
+        return res.status(400).json({ message: 'Error, El stock actual no puede surtir esa venta/salida' });
+      }
+      updatedInventory = await InventoryModel.adjust(branchId, product_id, newQuantity);
+      movement = await Movement.create(branchId, product_id, userId, type, quantity, reason || null);
     }
 
     console.log(`✅ Movimiento creado: ${type} de ${quantity} unidades del producto ${product_id}`);
 
     res.status(201).json({ 
       message: 'Movimiento registrado',
-      movement 
+      movement,
+      inventory: updatedInventory
     });
   } catch (err) {
     console.error('❌ Error en createMovement:', err);
+    // Verificar si es error de stock insuficiente
+    if (err.message?.includes('Stock insuficiente') || err.message?.includes('stock actual no puede surtir')) {
+      return res.status(400).json({ message: 'Error, El stock actual no puede surtir esa venta/salida' });
+    }
     res.status(500).json({ error: err.message });
   }
 };

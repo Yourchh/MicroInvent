@@ -61,8 +61,12 @@ export function useInventorySync(branchId) {
         // --- CORRECCIÓN CRÍTICA AQUÍ ---
         const itemsToSave = data.map(item => ({
           // Mapeamos el ID del servidor (inventory_id) al ID que Dexie espera (id)
-          id: item.inventory_id, 
+          id: item.inventory_id,
           ...item,
+          // Normalizamos campos de stock para que no queden undefined
+          quantity: item.quantity ?? 0,
+          min_stock: item.min_stock ?? item.min_stock_alert ?? 0,
+          max_stock: item.max_stock ?? null,
           branch_id: Number(branchId),
           synced_at: new Date()
         }));
