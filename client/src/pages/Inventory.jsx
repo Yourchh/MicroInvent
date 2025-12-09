@@ -116,7 +116,13 @@ export default function Inventory() {
   const updateMutation = useMutation({
     mutationFn: async (data) => {
       const idToUpdate = editingProduct?.product_id || editingProduct?.id;
-      const payload = { ...data, min_stock: data.min_stock, max_stock: data.max_stock || null };
+      const payload = { 
+        ...data, 
+        min_stock: data.min_stock, 
+        max_stock: data.max_stock || null,
+        branch_id: selectedBranchId,
+        quantity: data.quantity
+      };
       
       if (isOnline) {
         await api.put(`/products/${idToUpdate}`, payload);
