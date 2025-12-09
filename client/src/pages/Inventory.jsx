@@ -55,7 +55,7 @@ export default function Inventory() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [editingProduct, setEditingProduct] = useState(null);
-  const [formData, setFormData] = useState({ sku: '', name: '', price: '', min_stock_alert: 5 });
+  const [formData, setFormData] = useState({ sku: '', name: '', price: '', min_stock_alert: 5, quantity: 0, min_stock: 0, max_stock: '' });
   const [showOfflineAlert, setShowOfflineAlert] = useState(true);
 
   const closeModal = () => {
@@ -82,7 +82,7 @@ export default function Inventory() {
   // --- MUTACIONES (Código igual al original...) ---
   const createMutation = useMutation({
     mutationFn: async (data) => {
-      const payload = { ...data, branch_id: selectedBranchId };
+      const payload = { ...data, branch_id: selectedBranchId, initial_stock: data.quantity, min_stock: data.min_stock, max_stock: data.max_stock || null };
 
       if (isOnline) {
         await api.post('/products', payload);
@@ -96,8 +96,10 @@ export default function Inventory() {
             sku: data.sku,
             product_name: data.name, 
             price: data.price,
-            quantity: 0, 
-            min_stock_alert: data.min_stock_alert
+            quantity: data.quantity ?? 0, 
+            min_stock_alert: data.min_stock_alert,
+            min_stock: data.min_stock ?? data.min_stock_alert ?? 0,
+            max_stock: data.max_stock || null
           });
           // Luego guardar en mutations (sin transacción anidada)
           await addToQueue('CREATE', payload, tempId);
@@ -114,11 +116,12 @@ export default function Inventory() {
   const updateMutation = useMutation({
     mutationFn: async (data) => {
       const idToUpdate = editingProduct?.product_id || editingProduct?.id;
+      const payload = { ...data, min_stock: data.min_stock, max_stock: data.max_stock || null };
       
       if (isOnline) {
-        await api.put(`/products/${idToUpdate}`, data);
+        await api.put(`/products/${idToUpdate}`, payload);
         if (editingProduct.id) { 
-          await db.inventory.update(idToUpdate, data);
+          await db.inventory.update(idToUpdate, payload);
         }
       } else {
         const isTemp = typeof idToUpdate === 'string' && idToUpdate.startsWith('temp_');
@@ -126,13 +129,13 @@ export default function Inventory() {
         if (isTemp) {
           const existing = await db.mutations.where('tempId').equals(idToUpdate).first();
           if (existing) {
-            await db.mutations.update(existing.id, { payload: { ...existing.payload, ...data } });
+            await db.mutations.update(existing.id, { payload: { ...existing.payload, ...payload } });
           }
-          await db.inventory.update(idToUpdate, data);
+          await db.inventory.update(idToUpdate, payload);
         } else {
           try {
-            await db.inventory.update(idToUpdate, data);
-            await addToQueue('UPDATE', data, null);
+            await db.inventory.update(idToUpdate, payload);
+            await addToQueue('UPDATE', payload, null);
           } catch (err) {
             console.error('❌ Error en update offline:', err);
             throw err;
@@ -178,7 +181,7 @@ export default function Inventory() {
 
   const openModal = () => {
     setEditingProduct(null);
-    setFormData({ sku: '', name: '', price: '', min_stock_alert: 5 });
+    setFormData({ sku: '', name: '', price: '', min_stock_alert: 5, quantity: 0, min_stock: 0, max_stock: '' });
     setErrorMsg('');
     setIsModalOpen(true);
   };
@@ -189,7 +192,10 @@ export default function Inventory() {
       sku: product.sku,
       name: product.product_name,
       price: product.price,
-      min_stock_alert: product.min_stock_alert || 5
+      min_stock_alert: product.min_stock_alert || 5,
+      quantity: product.quantity ?? 0,
+      min_stock: product.min_stock ?? product.min_stock_alert ?? 0,
+      max_stock: product.max_stock ?? ''
     });
     setErrorMsg('');
     setIsModalOpen(true);
@@ -311,7 +317,9 @@ export default function Inventory() {
               <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">SKU</th>
               <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Nombre</th>
               <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Precio</th>
+              <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Stock Actual</th>
               <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Stock Mínimo</th>
+              <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Stock Máximo</th>
               <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase text-center">Estado</th>
               <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase text-center">Acciones</th>
             </tr>
@@ -327,7 +335,9 @@ export default function Inventory() {
                   </div>
                 </td>
                 <td className="px-6 py-4 text-slate-800 font-medium">${parseFloat(product.price).toFixed(2)}</td>
-                <td className="px-6 py-4 text-slate-600">{product.min_stock_alert || 0}</td>
+                <td className="px-6 py-4 text-slate-800 font-semibold">{product.quantity ?? 0}</td>
+                <td className="px-6 py-4 text-slate-600">{product.min_stock ?? product.min_stock_alert ?? 0}</td>
+                <td className="px-6 py-4 text-slate-600">{product.max_stock ?? '—'}</td>
                 <td className="px-6 py-4 text-center">
                     {getSyncStatus(product)}
                 </td>
@@ -411,8 +421,31 @@ export default function Inventory() {
                   <input 
                     type="number" required 
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary/20 outline-none"
-                    value={formData.min_stock_alert}
-                    onChange={e => setFormData({...formData, min_stock_alert: Number(e.target.value)})}
+                    value={formData.min_stock}
+                    onChange={e => setFormData({...formData, min_stock: Number(e.target.value), min_stock_alert: Number(e.target.value)})}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Stock Actual</label>
+                  <input 
+                    type="number" min="0" 
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary/20 outline-none"
+                    value={formData.quantity}
+                    onChange={e => setFormData({...formData, quantity: Number(e.target.value)})}
+                    placeholder="0"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Stock Máximo</label>
+                  <input 
+                    type="number" min="0" 
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary/20 outline-none"
+                    value={formData.max_stock}
+                    onChange={e => setFormData({...formData, max_stock: e.target.value === '' ? '' : Number(e.target.value)})}
+                    placeholder="Opcional"
                   />
                 </div>
               </div>

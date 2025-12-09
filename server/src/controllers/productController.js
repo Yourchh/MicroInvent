@@ -32,7 +32,7 @@ exports.createProduct = async (req, res) => {
   const client = await pool.connect(); // Usamos un cliente dedicado para la transacción
 
   try {
-    const { sku, name, price, min_stock_alert } = req.body;
+    const { sku, name, price, min_stock_alert, initial_stock = 0, min_stock = 0, max_stock = null } = req.body;
 
     // 1. Iniciar Transacción
     await client.query('BEGIN');
@@ -62,13 +62,16 @@ exports.createProduct = async (req, res) => {
       console.warn('⚠️ Se creó un producto pero no existen sucursales para asignarle inventario.');
     }
 
-    // 5. Inicializar Inventario (Stock 0) para cada sucursal
+    // 5. Inicializar Inventario para cada sucursal (stock aislado por sucursal)
+    // Si el creador pertenece a una sucursal, solo esa sucursal recibe el stock inicial; las demás quedan en 0
+    const creatorBranchId = req.user?.branch_id;
     for (const branch of branches) {
+      const qtyForBranch = creatorBranchId && branch.id === creatorBranchId ? initial_stock : 0;
       const insertInventoryText = `
-        INSERT INTO inventory (branch_id, product_id, quantity) 
-        VALUES ($1, $2, 0)
+        INSERT INTO inventory (branch_id, product_id, quantity, min_stock, max_stock) 
+        VALUES ($1, $2, $3, $4, $5)
       `;
-      await client.query(insertInventoryText, [branch.id, newProduct.id]);
+      await client.query(insertInventoryText, [branch.id, newProduct.id, qtyForBranch, min_stock, max_stock]);
     }
 
     // 6. Confirmar Transacción
@@ -91,22 +94,44 @@ exports.createProduct = async (req, res) => {
 
 // --- NUEVA FUNCIÓN: ACTUALIZAR ---
 exports.updateProduct = async (req, res) => {
+  const client = await pool.connect();
   try {
     const { id } = req.params;
-    const { sku, name, price, min_stock_alert } = req.body;
-    
+    const { sku, name, price, min_stock_alert, min_stock, max_stock, quantity, branch_id } = req.body;
+    await client.query('BEGIN');
+
     const query = `
       UPDATE products 
       SET sku = $1, name = $2, price = $3, min_stock_alert = $4
       WHERE id = $5 RETURNING *
     `;
-    const { rows } = await pool.query(query, [sku, name, price, min_stock_alert, id]);
+    const { rows } = await client.query(query, [sku, name, price, min_stock_alert, id]);
 
-    if (rows.length === 0) return res.status(404).json({ message: 'Producto no encontrado' });
-    
+    if (rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ message: 'Producto no encontrado' });
+    }
+
+    // Actualizar inventario de la sucursal (si se envía branch_id)
+    if (branch_id) {
+      const invQuery = `
+        UPDATE inventory
+        SET quantity = COALESCE($1, quantity),
+            min_stock = COALESCE($2, min_stock),
+            max_stock = COALESCE($3, max_stock),
+            version = version + 1
+        WHERE branch_id = $4 AND product_id = $5
+      `;
+      await client.query(invQuery, [quantity, min_stock, max_stock, branch_id, id]);
+    }
+
+    await client.query('COMMIT');
     res.json({ message: 'Producto actualizado', product: rows[0] });
   } catch (err) {
+    await client.query('ROLLBACK');
     res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
   }
 };
 

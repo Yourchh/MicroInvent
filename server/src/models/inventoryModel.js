@@ -5,6 +5,7 @@ const Inventory = {
     const query = `
       SELECT 
         i.id, i.branch_id, i.product_id, i.quantity, i.version,
+        i.min_stock, i.max_stock,
         p.sku, p.name, p.price, p.min_stock_alert
       FROM inventory i
       JOIN products p ON i.product_id = p.id
@@ -19,6 +20,7 @@ const Inventory = {
     const query = `
       SELECT 
         i.id, i.branch_id, i.product_id, i.quantity, i.version,
+        i.min_stock, i.max_stock,
         p.sku, p.name, p.price, p.min_stock_alert
       FROM inventory i
       JOIN products p ON i.product_id = p.id
@@ -44,8 +46,8 @@ const Inventory = {
       if (existing.rows.length === 0) {
         // Crear nuevo registro
         const query = `
-          INSERT INTO inventory (branch_id, product_id, quantity, version)
-          VALUES ($1, $2, $3, 1)
+          INSERT INTO inventory (branch_id, product_id, quantity, version, min_stock, max_stock)
+          VALUES ($1, $2, $3, 1, 0, NULL)
           RETURNING *
         `;
         result = await client.query(query, [branchId, productId, quantity]);
@@ -132,8 +134,8 @@ const Inventory = {
       let result;
       if (existing.rows.length === 0) {
         const query = `
-          INSERT INTO inventory (branch_id, product_id, quantity, version)
-          VALUES ($1, $2, $3, 1)
+          INSERT INTO inventory (branch_id, product_id, quantity, version, min_stock, max_stock)
+          VALUES ($1, $2, $3, 1, 0, NULL)
           RETURNING *
         `;
         result = await client.query(query, [branchId, productId, newQuantity]);
@@ -165,8 +167,8 @@ const Inventory = {
   // Crear o actualizar (para transferencias)
   createOrUpdate: async (branchId, productId, quantity) => {
     const query = `
-      INSERT INTO inventory (branch_id, product_id, quantity, version)
-      VALUES ($1, $2, $3, 1)
+          INSERT INTO inventory (branch_id, product_id, quantity, version, min_stock, max_stock)
+          VALUES ($1, $2, $3, 1, 0, NULL)
       ON CONFLICT (branch_id, product_id)
       DO UPDATE SET quantity = EXCLUDED.quantity, version = version + 1
       RETURNING *
