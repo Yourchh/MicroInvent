@@ -32,7 +32,15 @@ exports.createProduct = async (req, res) => {
   const client = await pool.connect(); // Usamos un cliente dedicado para la transacción
 
   try {
-    const { sku, name, price, min_stock_alert, initial_stock = 0, min_stock = 0, max_stock = null } = req.body;
+    const { sku, name, price, min_stock_alert, initial_stock = 0, min_stock = 0, max_stock = null, branch_id } = req.body;
+
+    // Validaciones básicas de stock
+    if (initial_stock < 0) {
+      return res.status(400).json({ message: 'El stock inicial no puede ser negativo' });
+    }
+    if (min_stock < 0) {
+      return res.status(400).json({ message: 'El stock mínimo no puede ser negativo' });
+    }
 
     // 1. Iniciar Transacción
     await client.query('BEGIN');
@@ -64,7 +72,7 @@ exports.createProduct = async (req, res) => {
 
     // 5. Inicializar Inventario para cada sucursal (stock aislado por sucursal)
     // Si el creador pertenece a una sucursal, solo esa sucursal recibe el stock inicial; las demás quedan en 0
-    const creatorBranchId = req.user?.branch_id;
+    const creatorBranchId = branch_id || req.user?.branch_id;
     for (const branch of branches) {
       const qtyForBranch = creatorBranchId && branch.id === creatorBranchId ? initial_stock : 0;
       const insertInventoryText = `
@@ -122,6 +130,14 @@ exports.updateProduct = async (req, res) => {
             version = version + 1
         WHERE branch_id = $4 AND product_id = $5
       `;
+      if (quantity < 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ message: 'El stock actual no puede ser negativo' });
+      }
+      if (min_stock < 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ message: 'El stock mínimo no puede ser negativo' });
+      }
       await client.query(invQuery, [quantity, min_stock, max_stock, branch_id, id]);
     }
 
