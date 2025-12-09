@@ -456,9 +456,10 @@ export default function Users() {
                   value={formData.role}
                   onChange={(e) => setFormData({ ...formData, role: e.target.value })}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  disabled={editingUser && !['employee', 'manager'].includes(editingUser.role)} // Solo permite cambiar entre employee y manager
+                  disabled={editingUser && !isSuperAdmin && !['employee', 'manager'].includes(editingUser.role)} // Admin solo puede cambiar employee/manager
                 >
-                  {isSuperAdmin && !editingUser && (
+                  {/* SuperAdmin ve todos los roles (crear o editar) */}
+                  {isSuperAdmin && (
                     <>
                       <option value="superadmin">SuperAdmin</option>
                       <option value="admin">Admin</option>
