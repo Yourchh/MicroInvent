@@ -13,7 +13,9 @@ export default function Transfers() {
   const queryClient = useQueryClient();
   const [showModal, setShowModal] = useState(false);
   const [filterStatus, setFilterStatus] = useState('');
+  const [filterDirection, setFilterDirection] = useState(''); // sent, received
   const [formData, setFormData] = useState({
+    transfer_type: 'REQUEST', // REQUEST o SEND
     dest_branch_id: '',
     products: [{ product_id: '', quantity: '' }]
   });
@@ -41,13 +43,12 @@ export default function Transfers() {
 
   // Cargar transferencias
   const { data: transfersData = {}, isLoading, refetch } = useQuery({
-    queryKey: ['transfers', filterStatus],
+    queryKey: ['transfers', filterStatus, filterDirection],
     queryFn: async () => {
-      if (filterStatus === 'pending') {
-        const response = await api.get('/transfers/pending');
-        return response.data;
-      }
-      const response = await api.get('/transfers');
+      const params = new URLSearchParams();
+      if (filterStatus) params.append('status', filterStatus);
+      if (filterDirection) params.append('direction', filterDirection);
+      const response = await api.get(`/transfers?${params.toString()}`);
       return response.data;
     }
   });
@@ -60,7 +61,7 @@ export default function Transfers() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['transfers'] });
       setShowModal(false);
-      setFormData({ dest_branch_id: '', products: [{ product_id: '', quantity: '' }] });
+      setFormData({ transfer_type: 'REQUEST', dest_branch_id: '', products: [{ product_id: '', quantity: '' }] });
       alert('✅ Solicitud de transferencia creada');
       refetch();
     },
@@ -128,6 +129,7 @@ export default function Transfers() {
     }
 
     createMutation.mutate({
+      transfer_type: formData.transfer_type,
       dest_branch_id: Number(formData.dest_branch_id),
       items: validProducts.map(p => ({
         product_id: Number(p.product_id),
@@ -234,12 +236,24 @@ export default function Transfers() {
       {/* Filtros */}
       <div className="flex gap-2">
         <select
+          value={filterDirection}
+          onChange={(e) => setFilterDirection(e.target.value)}
+          className="px-4 py-2 border border-slate-300 rounded-lg outline-none bg-white text-sm"
+        >
+          <option value="">Todas (Enviadas/Recibidas)</option>
+          <option value="sent">Enviadas</option>
+          <option value="received">Recibidas</option>
+        </select>
+        <select
           value={filterStatus}
           onChange={(e) => setFilterStatus(e.target.value)}
           className="px-4 py-2 border border-slate-300 rounded-lg outline-none bg-white text-sm"
         >
-          <option value="">Todas las transferencias</option>
-          <option value="pending">Pendientes</option>
+          <option value="">Todos los estados</option>
+          <option value="PENDING">Pendientes</option>
+          <option value="IN_TRANSIT">En Tránsito</option>
+          <option value="COMPLETED">Entregadas</option>
+          <option value="CANCELLED">Canceladas</option>
         </select>
       </div>
 
@@ -342,14 +356,34 @@ export default function Transfers() {
 
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Sucursal Destino</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Tipo de Petición</label>
+                <select 
+                  value={formData.transfer_type}
+                  onChange={(e) => setFormData({...formData, transfer_type: e.target.value})}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none bg-white"
+                  required
+                >
+                  <option value="REQUEST">Solicitar stock de otra sucursal</option>
+                  <option value="SEND">Enviar stock a otra sucursal</option>
+                </select>
+                <p className="text-xs text-slate-500 mt-1">
+                  {formData.transfer_type === 'REQUEST' 
+                    ? 'Solicitas que otra sucursal te envíe productos' 
+                    : 'Ofreces enviar productos a otra sucursal (ej: almacén lleno)'}
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  {formData.transfer_type === 'REQUEST' ? 'Sucursal que enviará' : 'Sucursal que recibirá'}
+                </label>
                 <select 
                   value={formData.dest_branch_id}
                   onChange={(e) => setFormData({...formData, dest_branch_id: e.target.value})}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none bg-white"
                   required
                 >
-                  <option value="">Selecciona una sucursal destino</option>
+                  <option value="">Selecciona una sucursal</option>
                   {branches.map(b => (
                     <option key={b.id} value={b.id}>{b.name}</option>
                   ))}

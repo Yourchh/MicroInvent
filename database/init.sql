@@ -55,6 +55,7 @@ CREATE TABLE transfers (
     source_branch_id INT REFERENCES branches(id),
     dest_branch_id INT REFERENCES branches(id),
     requester_user_id INT REFERENCES users(id),
+    transfer_type VARCHAR(20) DEFAULT 'REQUEST', -- 'REQUEST' o 'SEND'
     status transfer_status DEFAULT 'PENDING',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

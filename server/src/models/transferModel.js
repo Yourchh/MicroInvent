@@ -2,18 +2,18 @@ const pool = require('../config/db');
 
 const Transfer = {
   // Crear solicitud de transferencia
-  create: async (sourceBranchId, destBranchId, requesterUserId, items) => {
+  create: async (sourceBranchId, destBranchId, requesterUserId, items, transferType = 'REQUEST') => {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
 
       // Crear transferencia
       const transferQuery = `
-        INSERT INTO transfers (source_branch_id, dest_branch_id, requester_user_id, status)
-        VALUES ($1, $2, $3, 'PENDING')
+        INSERT INTO transfers (source_branch_id, dest_branch_id, requester_user_id, transfer_type, status)
+        VALUES ($1, $2, $3, $4, 'PENDING')
         RETURNING *
       `;
-      const { rows: [transfer] } = await client.query(transferQuery, [sourceBranchId, destBranchId, requesterUserId]);
+      const { rows: [transfer] } = await client.query(transferQuery, [sourceBranchId, destBranchId, requesterUserId, transferType]);
 
       // Insertar items
       for (const item of items) {
@@ -69,7 +69,7 @@ const Transfer = {
   },
 
   // Obtener todas las transferencias de una sucursal
-  getByBranch: async (branchId, status = null) => {
+  getByBranch: async (branchId, status = null, direction = null) => {
     let query = `
       SELECT 
         t.id,
@@ -78,7 +78,8 @@ const Transfer = {
         t.dest_branch_id,
         db.name as dest_branch,
         t.requester_user_id,
-        u.username as requester,
+        u.username as requester_username,
+        t.transfer_type,
         t.status,
         t.created_at,
         COALESCE(json_agg(json_build_object(
@@ -87,20 +88,38 @@ const Transfer = {
           'product_name', p.name,
           'sku', p.sku,
           'quantity', ti.quantity
-        )), '[]') as items
+        )) FILTER (WHERE ti.id IS NOT NULL), '[]') as items
       FROM transfers t
       JOIN branches sb ON t.source_branch_id = sb.id
       JOIN branches db ON t.dest_branch_id = db.id
       JOIN users u ON t.requester_user_id = u.id
       LEFT JOIN transfer_items ti ON t.id = ti.transfer_id
       LEFT JOIN products p ON ti.product_id = p.id
-      WHERE t.source_branch_id = $1 OR t.dest_branch_id = $1
+      WHERE 1=1
     `;
-    const params = [branchId];
+    const params = [];
+    let paramIndex = 1;
+
+    // Filtro de dirección
+    if (direction === 'sent') {
+      query += ` AND t.source_branch_id = $${paramIndex}`;
+      params.push(branchId);
+      paramIndex++;
+    } else if (direction === 'received') {
+      query += ` AND t.dest_branch_id = $${paramIndex}`;
+      params.push(branchId);
+      paramIndex++;
+    } else {
+      // Sin filtro de dirección: mostrar todas (enviadas o recibidas)
+      query += ` AND (t.source_branch_id = $${paramIndex} OR t.dest_branch_id = $${paramIndex})`;
+      params.push(branchId);
+      paramIndex++;
+    }
 
     if (status) {
-      query += ` AND t.status = $2`;
+      query += ` AND t.status = $${paramIndex}`;
       params.push(status);
+      paramIndex++;
     }
 
     query += ` GROUP BY t.id, sb.name, db.name, u.username ORDER BY t.created_at DESC`;

@@ -4,7 +4,7 @@ const InventoryModel = require('../models/inventoryModel');
 // Crear solicitud de transferencia
 exports.createTransfer = async (req, res) => {
   try {
-    const { dest_branch_id, items } = req.body;
+    const { dest_branch_id, items, transfer_type = 'REQUEST' } = req.body;
     const sourceBranchId = req.user.branch_id;
     const requesterUserId = req.user.id;
 
@@ -21,13 +21,16 @@ exports.createTransfer = async (req, res) => {
       return res.status(400).json({ message: 'No puedes transferir a la misma sucursal' });
     }
 
-    // Validar que hay stock suficiente
-    for (const item of items) {
-      const inventory = await InventoryModel.findById(sourceBranchId, item.product_id);
-      if (!inventory || inventory.quantity < item.quantity) {
-        return res.status(400).json({ 
-          message: `Stock insuficiente del producto ${item.product_id}. Disponible: ${inventory?.quantity || 0}` 
-        });
+    // Para SEND: validar que hay stock suficiente en la sucursal origen
+    // Para REQUEST: no validamos stock aquí, se valida al aprobar
+    if (transfer_type === 'SEND') {
+      for (const item of items) {
+        const inventory = await InventoryModel.findById(sourceBranchId, item.product_id);
+        if (!inventory || inventory.quantity < item.quantity) {
+          return res.status(400).json({ 
+            message: `Stock insuficiente del producto ${item.product_id}. Disponible: ${inventory?.quantity || 0}` 
+          });
+        }
       }
     }
 
@@ -36,10 +39,11 @@ exports.createTransfer = async (req, res) => {
       sourceBranchId,
       dest_branch_id,
       requesterUserId,
-      items
+      items,
+      transfer_type
     );
 
-    console.log(`✅ Transferencia creada: ${transfer.id} desde sucursal ${sourceBranchId}`);
+    console.log(`✅ Transferencia ${transfer_type} creada: ${transfer.id} desde sucursal ${sourceBranchId}`);
 
     res.status(201).json({
       message: 'Solicitud de transferencia creada',
@@ -72,9 +76,9 @@ exports.getPendingTransfers = async (req, res) => {
 exports.getTransfers = async (req, res) => {
   try {
     const branchId = req.user.branch_id;
-    const { status } = req.query;
+    const { status, direction } = req.query;
 
-    const transfers = await Transfer.getByBranch(branchId, status || null);
+    const transfers = await Transfer.getByBranch(branchId, status || null, direction || null);
 
     res.json({
       count: transfers.length,
