@@ -88,14 +88,31 @@ export default function Users() {
   };
 
   const handleSuccess = async (msg) => {
+    // Primero actualizar localmente la IndexedDB si estamos editando
+    if (editingUser && isOnline) {
+      // Refetch desde el servidor para obtener datos frescos
+      try {
+        const response = await api.get('/users');
+        const updatedUser = response.data.find(u => u.id === editingUser.id);
+        if (updatedUser) {
+          await db.users.put(updatedUser);
+          console.log('✅ Usuario actualizado en IndexedDB:', updatedUser);
+        }
+      } catch (err) {
+        console.error('Error refetcheando usuario:', err);
+      }
+    }
+    
     closeModal();
-    // Refrescar datos desde el servidor forzadamente  
-    setTimeout(() => {
-      queryClient.refetchQueries({ queryKey: ['syncUsers'], type: 'active' }).catch(console.error);
+    
+    // Luego refrescar React Query con delay
+    setTimeout(async () => {
+      await queryClient.invalidateQueries({ queryKey: ['syncUsers'] });
+      await queryClient.refetchQueries({ queryKey: ['syncUsers'] });
       if (isOnline) {
         alert(msg);
       }
-    }, 500);
+    }, 1000);
   };
 
   const handleError = (err) => {
