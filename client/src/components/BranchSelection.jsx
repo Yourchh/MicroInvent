@@ -7,8 +7,9 @@ export default function BranchSelection({ tempToken, userData, onBranchSelected 
   const [selectedBranch, setSelectedBranch] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
 
-  // Determinar si es superadmin o admin
+  // Determinar si es superadmin o admin/manager
   const isSuperAdmin = userData?.role === 'superadmin';
+  const isAdminOrManager = ['admin', 'manager'].includes(userData?.role);
   const assignedBranchId = userData?.assigned_branch_id;
 
   // Cargar sucursales públicamente
@@ -32,7 +33,12 @@ export default function BranchSelection({ tempToken, userData, onBranchSelected 
   // Filtrar sucursales según el rol
   const branches = isSuperAdmin 
     ? allBranches 
-    : allBranches.filter(b => b.id === assignedBranchId);
+    : isAdminOrManager
+      ? allBranches.filter(b => b.id === assignedBranchId)
+      : [];
+
+  // Mensaje según el rol
+  const roleLabel = userData?.role === 'manager' ? 'gerente' : userData?.role === 'admin' ? 'administrador' : 'usuario';
 
   // Mutación para seleccionar sucursal
   const selectMutation = useMutation({
@@ -115,6 +121,7 @@ export default function BranchSelection({ tempToken, userData, onBranchSelected 
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">
               Sucursal {isSuperAdmin && <span className="text-blue-600 ml-1">(SuperAdmin - Todas)</span>}
+              {isAdminOrManager && <span className="text-blue-600 ml-1">({roleLabel.charAt(0).toUpperCase() + roleLabel.slice(1)} - Asignada)</span>}
             </label>
             <select
               value={selectedBranch}
