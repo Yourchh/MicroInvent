@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { Box, Users, ShieldCheck } from 'lucide-react';
@@ -16,6 +17,7 @@ export default function Login() {
   const [requiresBranchSelection, setRequiresBranchSelection] = useState(false);
   const { login, updateUser } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -24,6 +26,10 @@ export default function Login() {
     const result = await login(username, password, userType);
     
     if (result.success) {
+      // Invalidar cache para forzar recarga de datos
+      await queryClient.invalidateQueries({ queryKey: ['syncUsers'] });
+      await queryClient.invalidateQueries({ queryKey: ['branches'] });
+      
       // Si requiere selección de sucursal (admin/superadmin)
       if (result.requiresBranchSelection) {
         console.log('🔄 Requiere selección de sucursal');
@@ -45,6 +51,9 @@ export default function Login() {
     if (data?.user) {
       updateUser(data.user);
     }
+    // Invalidar cache nuevamente para que cargue con el usuario correcto
+    queryClient.invalidateQueries({ queryKey: ['syncUsers'] });
+    queryClient.invalidateQueries({ queryKey: ['branches'] });
     navigate('/dashboard');
   };
 
