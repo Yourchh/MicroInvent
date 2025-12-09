@@ -1,7 +1,6 @@
 const pool = require('../config/db');
 
 const User = {
-  // --- BUSQUEDAS ---
   findByUsername: async (username) => {
     const { rows } = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
     return rows[0];
@@ -13,7 +12,6 @@ const User = {
   },
 
   findAll: async () => {
-    // Traemos datos seguros (sin password) y el nombre de la sucursal
     const query = `
       SELECT u.id, u.username, u.role, u.branch_id, b.name as branch_name, u.created_at
       FROM users u
@@ -25,7 +23,6 @@ const User = {
   },
 
   findByBranch: async (branchId) => {
-    // Obtener solo usuarios de una sucursal específica
     const query = `
       SELECT u.id, u.username, u.role, u.branch_id, b.name as branch_name, u.created_at
       FROM users u
@@ -37,7 +34,6 @@ const User = {
     return rows;
   },
 
-  // --- VALIDACIONES DE ROL ---
   isSuperAdmin: (user) => {
     return user && user.role === 'superadmin';
   },
@@ -50,24 +46,19 @@ const User = {
     return user && user.role === 'employee';
   },
 
-  // Verifica si un admin tiene permiso sobre una sucursal específica
   canManageBranch: (user, branchId) => {
     if (!user) return false;
-    // Superadmin puede todo
     if (user.role === 'superadmin') return true;
-    // Admin solo puede su sucursal asignada
     if (user.role === 'admin') return user.branch_id === branchId;
     return false;
   },
 
-  // --- VALIDACIONES ---
   branchExists: async (branchId) => {
-    if (!branchId) return true; // Si no hay branch_id, es válido (puede ser NULL)
+    if (!branchId) return true;
     const { rows } = await pool.query('SELECT id FROM branches WHERE id = $1', [branchId]);
     return rows.length > 0;
   },
 
-  // --- CREAR ---
   create: async (username, passwordHash, role, branch_id) => {
     const query = `
       INSERT INTO users (username, password_hash, role, branch_id)
@@ -78,7 +69,6 @@ const User = {
     return rows[0];
   },
 
-  // --- EDITAR ---
   update: async (id, username, passwordHash, role, branch_id) => {
     const query = `
       UPDATE users 
@@ -96,7 +86,6 @@ const User = {
     return rows[0];
   },
 
-  // --- ELIMINAR ---
   delete: async (id) => {
     const query = 'DELETE FROM users WHERE id = $1 RETURNING id';
     const { rows } = await pool.query(query, [id]);

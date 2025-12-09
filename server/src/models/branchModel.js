@@ -1,7 +1,6 @@
 const pool = require('../config/db');
 
 const Branch = {
-  // --- BUSQUEDAS ---
   findById: async (id) => {
     const { rows } = await pool.query('SELECT * FROM branches WHERE id = $1', [id]);
     return rows[0];
@@ -17,7 +16,6 @@ const Branch = {
     return rows[0];
   },
 
-  // --- CREAR ---
   create: async (name, address = null) => {
     const query = `
       INSERT INTO branches (name, address)
@@ -28,7 +26,6 @@ const Branch = {
     return rows[0];
   },
 
-  // --- EDITAR ---
   update: async (id, name, address) => {
     const query = `
       UPDATE branches 
@@ -40,7 +37,6 @@ const Branch = {
     return rows[0];
   },
 
-  // --- ELIMINAR ---
   delete: async (id) => {
     const query = 'DELETE FROM branches WHERE id = $1 RETURNING id';
     const { rows } = await pool.query(query, [id]);
