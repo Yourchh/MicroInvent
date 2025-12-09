@@ -148,6 +148,7 @@ const Transfer = {
         db.name as dest_branch,
         t.requester_user_id,
         u.username as requester,
+        t.transfer_type,
         t.status,
         t.created_at,
         COALESCE(json_agg(json_build_object(
@@ -164,7 +165,7 @@ const Transfer = {
       LEFT JOIN transfer_items ti ON t.id = ti.transfer_id
       LEFT JOIN products p ON ti.product_id = p.id
       WHERE t.id = $1
-      GROUP BY t.id, sb.name, db.name, u.username
+      GROUP BY t.id, sb.name, db.name, u.username, t.transfer_type
     `;
     const { rows } = await pool.query(query, [id]);
     return rows[0];

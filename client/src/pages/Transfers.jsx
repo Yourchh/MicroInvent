@@ -235,19 +235,38 @@ export default function Transfers() {
   });
 
   const canApprove = (transfer) => {
-    return transfer.status === 'PENDING' && transfer.dest_branch_id === user?.branch_id;
+    // REQUEST: Aprueba el source (quien tiene el stock)
+    // SEND: Aprueba el dest (quien recibe el stock)
+    if (transfer.transfer_type === 'REQUEST') {
+      return transfer.status === 'PENDING' && transfer.source_branch_id === user?.branch_id;
+    } else {
+      return transfer.status === 'PENDING' && transfer.dest_branch_id === user?.branch_id;
+    }
   };
 
   const canComplete = (transfer) => {
+    // Siempre completa el destino (quien recibe)
     return transfer.status === 'IN_TRANSIT' && transfer.dest_branch_id === user?.branch_id;
   };
 
   const canCancel = (transfer) => {
-    return transfer.status === 'PENDING' && transfer.source_branch_id === user?.branch_id;
+    // REQUEST: Cancela quien solicitó (dest)
+    // SEND: Cancela quien envió (source)
+    if (transfer.transfer_type === 'REQUEST') {
+      return transfer.status === 'PENDING' && transfer.dest_branch_id === user?.branch_id;
+    } else {
+      return transfer.status === 'PENDING' && transfer.source_branch_id === user?.branch_id;
+    }
   };
 
   const canReject = (transfer) => {
-    return transfer.status === 'PENDING' && transfer.dest_branch_id === user?.branch_id;
+    // REQUEST: Rechaza el source (quien tiene el stock)
+    // SEND: Rechaza el dest (quien recibe el stock)
+    if (transfer.transfer_type === 'REQUEST') {
+      return transfer.status === 'PENDING' && transfer.source_branch_id === user?.branch_id;
+    } else {
+      return transfer.status === 'PENDING' && transfer.dest_branch_id === user?.branch_id;
+    }
   };
 
   return (

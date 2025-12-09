@@ -137,7 +137,9 @@ exports.getTransfer = async (req, res) => {
   }
 };
 
-// Aprobar transferencia (solo para sucursal destino)
+// Aprobar transferencia
+// REQUEST: Aprueba el source (quien tiene el stock)
+// SEND: Aprueba el dest (quien recibe el stock)
 // Esto descuenta el stock de la sucursal origen
 exports.approveTransfer = async (req, res) => {
   try {
@@ -149,9 +151,24 @@ exports.approveTransfer = async (req, res) => {
       return res.status(404).json({ message: 'Transferencia no encontrada' });
     }
 
-    // Solo la sucursal destino puede aprobar
-    if (transfer.dest_branch_id !== branchId) {
-      return res.status(403).json({ message: 'Solo la sucursal destino puede aprobar la transferencia' });
+    console.log(`📋 approveTransfer - Transfer #${id}:`, {
+      transfer_type: transfer.transfer_type,
+      source_branch_id: transfer.source_branch_id,
+      dest_branch_id: transfer.dest_branch_id,
+      currentBranchId: branchId
+    });
+
+    // Validar permisos según el tipo de transferencia
+    if (transfer.transfer_type === 'REQUEST') {
+      // REQUEST: Solo la sucursal source (quien tiene el stock) puede aprobar
+      if (transfer.source_branch_id !== branchId) {
+        return res.status(403).json({ message: 'Solo la sucursal que tiene el stock puede aprobar esta solicitud' });
+      }
+    } else {
+      // SEND: Solo la sucursal dest (quien recibe) puede aprobar
+      if (transfer.dest_branch_id !== branchId) {
+        return res.status(403).json({ message: 'Solo la sucursal destino puede aprobar este envío' });
+      }
     }
 
     if (transfer.status !== 'PENDING') {
@@ -194,9 +211,17 @@ exports.rejectTransfer = async (req, res) => {
       return res.status(404).json({ message: 'Transferencia no encontrada' });
     }
 
-    // Solo la sucursal destino puede rechazar
-    if (transfer.dest_branch_id !== branchId) {
-      return res.status(403).json({ message: 'Solo la sucursal destino puede rechazar la transferencia' });
+    // Validar permisos según el tipo de transferencia
+    if (transfer.transfer_type === 'REQUEST') {
+      // REQUEST: Solo la sucursal source (quien tiene el stock) puede rechazar
+      if (transfer.source_branch_id !== branchId) {
+        return res.status(403).json({ message: 'Solo la sucursal que tiene el stock puede rechazar esta solicitud' });
+      }
+    } else {
+      // SEND: Solo la sucursal dest (quien recibe) puede rechazar
+      if (transfer.dest_branch_id !== branchId) {
+        return res.status(403).json({ message: 'Solo la sucursal destino puede rechazar este envío' });
+      }
     }
 
     if (transfer.status !== 'PENDING') {
@@ -263,9 +288,17 @@ exports.cancelTransfer = async (req, res) => {
       return res.status(404).json({ message: 'Transferencia no encontrada' });
     }
 
-    // Solo la sucursal origen puede cancelar
-    if (transfer.source_branch_id !== branchId) {
-      return res.status(403).json({ message: 'Solo la sucursal origen puede cancelar la transferencia' });
+    // Validar permisos según el tipo de transferencia
+    if (transfer.transfer_type === 'REQUEST') {
+      // REQUEST: Solo quien solicitó (dest) puede cancelar
+      if (transfer.dest_branch_id !== branchId) {
+        return res.status(403).json({ message: 'Solo quien solicitó puede cancelar esta solicitud' });
+      }
+    } else {
+      // SEND: Solo quien envió (source) puede cancelar
+      if (transfer.source_branch_id !== branchId) {
+        return res.status(403).json({ message: 'Solo quien envió puede cancelar este envío' });
+      }
     }
 
     if (transfer.status !== 'PENDING') {
