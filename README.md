@@ -2,24 +2,24 @@
 
 ![Status](https://img.shields.io/badge/Status-In%20Development-yellow) ![Version](https://img.shields.io/badge/Version-1.0.0-blue) ![License](https://img.shields.io/badge/License-MIT-green)
 
-## 📑 Índice
+## Índice
 
-- [Descripción del Proyecto](#-descripción-del-proyecto)
-- [Tecnologías Utilizadas](#-tecnologías-utilizadas)
-- [Responsabilidades por Módulo](#-responsabilidades-por-módulo)
-- [Instalación y Configuración Local](#-instalación-y-configuración-local)
-  - [Opción 1: Con Docker (Recomendado)](#opción-1-con-docker-recomendado)
-  - [Opción 2: Instalación Manual](#opción-2-instalación-manual)
-- [Guía de Usuario](#-guía-de-usuario)
-  - [Roles y Permisos](#roles-y-permisos)
-  - [Funcionalidades por Rol](#funcionalidades-por-rol)
-- [Arquitectura de Base de Datos](#-arquitectura-de-base-de-datos)
-- [Despliegue en AWS](#-despliegue-en-aws)
-- [Credenciales de Prueba](#-credenciales-de-prueba)
+- [Descripcion del Proyecto](#descripcion-del-proyecto)
+- [Tecnologias Utilizadas](#tecnologias-utilizadas)
+- [Responsabilidades por Modulo](#responsabilidades-por-modulo)
+- [Instalacion y Configuracion Local](#instalacion-y-configuracion-local)
+   - [Opcion 1: Con Docker (Recomendado)](#opcion-1-con-docker-recomendado)
+   - [Opcion 2: Instalacion Manual](#opcion-2-instalacion-manual)
+- [Guia de Usuario](#guia-de-usuario)
+   - [Roles y Permisos](#roles-y-permisos)
+- [Funcionalidades y Uso (online y offline)](#funcionalidades-y-uso-online-y-offline)
+- [Arquitectura de Base de Datos](#arquitectura-de-base-de-datos)
+- [Despliegue en AWS](#despliegue-en-aws)
+- [Credenciales de Prueba](#credenciales-de-prueba)
 
 ---
 
-## 📖 Descripción del Proyecto
+## Descripcion del Proyecto
 
 MicroInvent es una Aplicación Web Progresiva (PWA) diseñada para gestionar inventarios en tiempo real para negocios con múltiples sucursales. El sistema resuelve problemas de inconsistencia de stock mediante una arquitectura **Offline-First**, sincronización automática y manejo de concurrencia distribuida.
 
@@ -27,7 +27,7 @@ El proyecto está diseñado para ser desplegado en **AWS** utilizando servicios 
 
 ---
 
-## 🛠 Tecnologías Utilizadas
+## Tecnologias Utilizadas
 
 La arquitectura ha sido seleccionada para cumplir con los requisitos de alto rendimiento, funcionamiento sin conexión y actualizaciones en tiempo real.
 
@@ -70,35 +70,27 @@ La arquitectura ha sido seleccionada para cumplir con los requisitos de alto ren
 
 ---
 
-## 👥 Responsabilidades por Módulo
+## Responsabilidades por Modulo
 
 El desarrollo se divide por dominios funcionales para mantener la independencia del código y facilitar la colaboración.
 
 | Desarrollador | Módulo / Funcionalidad | Descripción Técnica |
 |:---|:---|:---|
-| **Jorge** | **Autenticación y Autorización** | Implementación de JWT, Middleware de protección de rutas, Sistema de roles (SuperAdmin/Admin/Employee), Gestión de sesiones por sucursal |
-| **Jorge** | **Gestión de Sucursales** | CRUD de sucursales, Asignación de usuarios a sucursales, Control de acceso por sucursal |
-| **Jorge** | **Inventario por Sucursal** | CRUD de productos, Visualización de stock en tiempo real, Manejo de alertas de stock bajo, Filtrado por sucursal |
-| **Jorge** | **Gestión de Usuarios** | CRUD de usuarios, Asignación de roles, Restricciones por sucursal para admins |
-| **Jorge** | **Configuración del Sistema** | Panel de configuración exclusivo para SuperAdmin, Reseteo de sistema, Eliminación de sucursales |
-| **Jorge** | **Modo Offline & Sincronización** | Implementación de cola de sincronización, Manejo de conflictos, IndexedDB para almacenamiento local, Service Workers |
-| **Jorge** | **Reportes y Análisis** | Generación de reportes de movimientos, Análisis de stock, Exportación de datos |
-| **Jorge** | **Dashboard y Métricas** | Visualización de KPIs, Gráficos de inventario, Productos con stock bajo |
-| **Angel** | **Transferencias entre Sucursales** | Lógica de negocio para mover stock entre sucursales (Solicitud → Aprobación → Envío → Recepción) con transacciones ACID |
-| **Angel** | **Registro de Entradas/Salidas** | Módulo de registro de movimientos de inventario (Compras/Ventas/Mermas/Ajustes), Auditoría de cambios |
+| **Jorge** | **Frontend + Backend** | Desarrollo completo de la PWA (React + Vite, React Query, Dexie/IndexedDB, Tailwind), API REST en Express/Node, PostgreSQL, autenticación JWT, roles (SuperAdmin/Admin/Employee), inventario, movimientos, transferencias, reportes, sincronización offline/online y experiencia de usuario. |
+| **Angel** | **Despliegue en AWS** | Diseño y operación del plan de despliegue en AWS (Amplify/Elastic Beanstalk/RDS/S3), contenedores Docker, pipelines y hardening de la infraestructura. |
 
 ---
 
-## 🚀 Instalación y Configuración Local
+## Instalacion y Configuracion Local
 
-### Opción 1: Con Docker (Recomendado)
+### Opcion 1: Con Docker (Recomendado)
 
-#### Prerrequisitos
+#### Prerrequisitos (Docker)
 
 - Docker Desktop instalado
 - Git
 
-#### Pasos
+#### Pasos (Docker)
 
 1. **Clonar el repositorio:**
 
@@ -155,15 +147,25 @@ El desarrollo se divide por dominios funcionales para mantener la independencia 
    - Frontend: [http://localhost:5173](http://localhost:5173)
    - Backend API: [http://localhost:3000](http://localhost:3000)
 
-### Opción 2: Instalación Manual
+6. **Build y preview (frontend):**
 
-#### Prerrequisitos
+   ```bash
+   cd client
+   npm run build   # genera artefactos en dist/
+   npm run preview # sirve el build local en http://localhost:4173
+   ```
+
+   Úsalo para validar el paquete PWA ya empacado y probar la instalación/descarga local en modo producción.
+
+### Opcion 2: Instalacion Manual
+
+#### Prerrequisitos (Manual)
 
 - Node.js v18+
 - PostgreSQL 14+
 - npm o yarn
 
-#### Pasos
+#### Pasos (Manual)
 
 1. **Clonar el repositorio:**
 
@@ -209,7 +211,7 @@ El desarrollo se divide por dominios funcionales para mantener la independencia 
 
 ---
 
-## 📱 Guía de Usuario
+## Guia de Usuario
 
 ### Instalación de la PWA en Chrome
 
@@ -226,12 +228,12 @@ MicroInvent es una Aplicación Web Progresiva (PWA) que puede instalarse en tu d
    Tienes dos opciones:
    
    **Opción A - Desde la barra de direcciones:**
-   - Busca el icono de instalación (➕ o 💻) en la esquina derecha de la barra de direcciones
+   - Busca el icono de instalación en la esquina derecha de la barra de direcciones
    - Haz clic en el icono
    
    **Opción B - Desde el menú:**
-   - Haz clic en el menú de Chrome (⋮) en la esquina superior derecha
-   - Selecciona **"Guardar y compartir"** → **"Instalar MicroInvent"**
+   - Haz clic en el menú de Chrome (tres puntos) en la esquina superior derecha
+   - Selecciona **"Guardar y compartir"** -> **"Instalar MicroInvent"**
    
    ![Instalar PWA Chrome](docs/screenshots/install-pwa-chrome.png)
 
@@ -245,7 +247,7 @@ MicroInvent es una Aplicación Web Progresiva (PWA) que puede instalarse en tu d
      - Tu escritorio (si marcaste la opción)
      - El menú de aplicaciones de tu sistema operativo
      - La barra de tareas
-     - Chrome → Apps (chrome://apps/)
+   - Chrome -> Apps (chrome://apps/)
    - Podrás iniciarla como cualquier aplicación de escritorio, sin necesidad de abrir el navegador
 
 #### Cómo Instalar en Chrome (Android)
@@ -270,12 +272,12 @@ MicroInvent es una Aplicación Web Progresiva (PWA) que puede instalarse en tu d
 
 #### Ventajas de Instalar la PWA
 
-✅ **Funciona sin internet** - Accede a tus datos y realiza cambios incluso offline  
-✅ **Experiencia nativa** - Se ejecuta en su propia ventana, sin barras del navegador  
-✅ **Sincronización automática** - Los cambios offline se sincronizan cuando recuperas conexión  
-✅ **Acceso rápido** - Lanza la app desde tu escritorio o pantalla de inicio en un clic  
-✅ **Almacenamiento local** - Tus datos se guardan en el dispositivo para acceso instantáneo  
-✅ **Actualizaciones automáticas** - La app se actualiza automáticamente cuando hay nuevas versiones
+- Funciona sin internet: accede a tus datos y realiza cambios incluso offline.
+- Experiencia nativa: se ejecuta en su propia ventana, sin barras del navegador.
+- Sincronización automática: los cambios offline se sincronizan al recuperar conexión.
+- Acceso rápido: lanza la app desde tu escritorio o pantalla de inicio en un clic.
+- Almacenamiento local: los datos se guardan en el dispositivo para acceso instantáneo.
+- Actualizaciones automáticas: la app se actualiza automáticamente cuando hay nuevas versiones.
 
 #### Desinstalar la PWA
 
@@ -311,157 +313,103 @@ El sistema cuenta con un flujo de autenticación de dos fases para administrador
 
 MicroInvent implementa un sistema de roles jerárquico con permisos específicos:
 
-#### 🔴 SuperAdmin
+#### SuperAdmin
 
 - **Acceso:** Total y sin restricciones
 - **Sucursal:** No asignado (puede cambiar entre todas las sucursales)
 - **Permisos:**
-  - ✅ Ver y gestionar todas las sucursales
-  - ✅ Crear/editar/eliminar sucursales
-  - ✅ Crear usuarios con cualquier rol (incluyendo otros SuperAdmins)
-  - ✅ Ver y gestionar todos los usuarios del sistema
-  - ✅ Acceso a módulo de Configuración completo
-  - ✅ Resetear sistema completo
-  - ✅ Ver inventario de cualquier sucursal
-  - ✅ Generar reportes globales
+  - Ver y gestionar todas las sucursales
+  - Crear/editar/eliminar sucursales
+  - Crear usuarios con cualquier rol (incluyendo otros SuperAdmins)
+  - Ver y gestionar todos los usuarios del sistema
+  - Acceso a módulo de Configuración completo
+  - Resetear sistema completo
+  - Ver inventario de cualquier sucursal
+  - Generar reportes globales
 
-#### 🟣 Admin
+#### Admin
 
 - **Acceso:** Administración de una sucursal específica
 - **Sucursal:** Asignado a una sucursal fija
 - **Permisos:**
-  - ✅ Ver solo usuarios de su sucursal
-  - ✅ Crear/editar/eliminar empleados de su sucursal
-  - ❌ No puede crear otros admins
-  - ❌ No puede cambiar de sucursal
-  - ✅ Ver inventario de su sucursal
-  - ✅ Gestionar productos de su sucursal
-  - ✅ Ver reportes de su sucursal
-  - ✅ Ver configuración (solo lectura)
+  - Ver solo usuarios de su sucursal
+  - Crear/editar/eliminar empleados de su sucursal
+  - No puede crear otros admins
+  - No puede cambiar de sucursal
+  - Ver inventario de su sucursal
+  - Gestionar productos de su sucursal
+  - Ver reportes de su sucursal
+  - Ver configuración (solo lectura)
 
-#### 🔵 Employee (Empleado)
+#### Manager (Gerente)
+
+- **Acceso:** Gestión operativa y de reportes de su sucursal
+- **Sucursal:** Asignado a una sucursal fija
+- **Permisos:**
+  - Ver inventario y movimientos de su sucursal
+  - Generar y visualizar reportes de su sucursal
+  - Gestionar productos y stock de su sucursal
+  - Aprobar/operar transferencias donde su sucursal participa
+  - Gestionar usuarios de su sucursal únicamente con rol Employee (crear/editar/eliminar)
+  - No puede cambiar de sucursal
+  - Sin acceso a configuración global
+
+#### Employee (Empleado)
 
 - **Acceso:** Operación básica de inventario
 - **Sucursal:** Asignado a una sucursal fija
 - **Permisos:**
-  - ✅ Ver inventario de su sucursal
-  - ✅ Registrar movimientos de inventario
-  - ✅ Ver dashboard de su sucursal
-  - ❌ No puede gestionar usuarios
-  - ❌ No puede acceder a configuración
-  - ❌ No puede cambiar de sucursal
+  - Ver inventario de su sucursal
+  - Registrar movimientos de inventario
+  - Ver dashboard de su sucursal
+  - No puede gestionar usuarios
+  - No puede acceder a configuración
+  - No puede cambiar de sucursal
 
-### Funcionalidades por Rol
+### Funcionalidades y Uso (online y offline)
 
-#### 📊 Dashboard
+Las siguientes funcionalidades operan de forma consistente tanto en línea como fuera de línea; cuando no hay red, los cambios se encolan y se sincronizan automáticamente al restablecer la conexión.
 
-![Dashboard Principal](docs/screenshots/dashboard.png)
+#### Dashboard
 
-**Todos los roles:**
+- Ver métricas clave: valor total, productos, stock bajo y movimientos recientes.
+- SuperAdmin puede cambiar de sucursal desde el selector superior para ver datos de cualquier sede.
+- Online u offline: los datos se muestran desde caché y se sincronizan al volver la conexión.
 
-- Visualización de métricas clave:
-  - Valor total del inventario
-  - Productos registrados
-  - Productos con stock bajo
-- Gráfico de productos por stock
-- Filtrado por sucursal (solo SuperAdmin)
+#### Inventario
 
-**Vista SuperAdmin:**
+- Buscar y filtrar productos, ver stock en tiempo real (por sucursal).
+- Crear/editar/eliminar productos. SuperAdmin puede cambiar de sucursal y gestionar cualquier inventario; Admin/Employee solo su sucursal.
+- Offline: los cambios se encolan y se sincronizan automáticamente cuando vuelve la red.
 
-![Dashboard SuperAdmin](docs/screenshots/dashboard-superadmin.png)
+#### Movimientos
 
-- Selector de sucursal en la parte superior
-- Puede cambiar entre todas las sucursales para ver sus métricas
+- Registrar entradas, salidas y ajustes con motivo y cantidad.
+- Historial visible por sucursal. SuperAdmin ve todos los movimientos; otros roles solo su sede.
+- Offline: se guarda en IndexedDB y se envía al servidor al recuperar conexión.
 
-#### 📦 Inventario
+#### Transferencias entre Sucursales
 
-![Inventario](docs/screenshots/inventory.png)
+- Flujo: Solicitar -> Aprobar -> Enviar -> Completar/Recibir.
+- SuperAdmin puede ver y operar sobre todas las sucursales. Admin/Employee operan solo su sucursal.
+- Estados soportados: PENDING, IN_TRANSIT, COMPLETED, REJECTED.
 
-**SuperAdmin:**
+#### Reportes (exportables a PDF)
 
-- Selector de sucursal (puede ver cualquier sucursal)
-- Agregar nuevos productos
-- Editar productos existentes
-- Eliminar productos
-- Ver stock en tiempo real
+- Pestañas: Stock Real, Auditoría (movimientos), Financiero, Stock Bajo, Transferencias.
+- Botón "Exportar Vista" genera PDF de la pestaña actual; "Descargar Todo" genera consolidado.
+- Offline: genera PDF con los datos cacheados; al reconectar, refresca al último estado del servidor.
 
-![Agregar Producto](docs/screenshots/add-product.png)
+#### Usuarios
 
-**Admin y Employee:**
+- SuperAdmin: CRUD completo, asignación de roles y sucursales.
+- Admin: CRUD de empleados de su sucursal; no cambia roles ni sucursales.
+- Employee: sin acceso a gestión de usuarios.
 
-- Vista fija de su sucursal
-- Mismas funciones de gestión de productos
+#### Configuracion
 
-#### 👥 Usuarios (Solo Admin y SuperAdmin)
-
-![Gestión de Usuarios](docs/screenshots/users.png)
-
-**SuperAdmin:**
-
-- Ver todos los usuarios del sistema
-- Crear usuarios con roles: Employee, Admin, SuperAdmin
-- Asignar sucursales a usuarios
-- Editar cualquier usuario
-- Eliminar usuarios
-
-![Crear Usuario SuperAdmin](docs/screenshots/create-user-superadmin.png)
-
-**Admin:**
-
-- Ver solo empleados de su sucursal
-- Crear solo empleados en su sucursal
-- Editar solo empleados de su sucursal
-- No puede cambiar roles ni sucursales
-
-![Vista Admin de Usuarios](docs/screenshots/users-admin.png)
-
-#### ⚙️ Configuración (Solo Admin y SuperAdmin)
-
-![Configuración SuperAdmin](docs/screenshots/settings-superadmin.png)
-
-**SuperAdmin:**
-
-- Ver lista de todas las sucursales
-- Crear nuevas sucursales
-- Eliminar sucursales individuales
-- **Zona de Peligro:**
-  - Resetear sistema completo (elimina todos los datos)
-  - Confirmación requerida
-
-![Crear Sucursal](docs/screenshots/create-branch.png)
-
-**Admin:**
-
-![Configuración Admin](docs/screenshots/settings-admin.png)
-
-- Ver lista de sucursales (solo lectura)
-- Mensaje: "Solo consulta - Contacta al SuperAdmin para cambios"
-
-#### 📈 Reportes (Próximamente)
-
-- Generación de reportes de movimientos
-- Análisis de tendencias
-- Exportación de datos
-
-#### 🔄 Transferencias entre Sucursales (Próximamente)
-
-**Desarrollado por: Angel**
-
-- Solicitar transferencia de productos a otra sucursal
-- Aprobar/rechazar solicitudes de transferencia
-- Registrar envío de productos
-- Confirmar recepción en sucursal destino
-- Historial de transferencias
-
-#### 📝 Registro de Entradas/Salidas (Próximamente)
-
-**Desarrollado por: Angel**
-
-- Registrar compras (entradas)
-- Registrar ventas (salidas)
-- Registrar mermas y ajustes
-- Auditoría completa de movimientos
-- Trazabilidad de cambios en inventario
+- SuperAdmin: crear/eliminar sucursales, zona de peligro (reset del sistema con confirmación).
+- Admin: vista de solo lectura de sucursales y configuración general.
 
 ### Modo Offline
 
@@ -473,9 +421,9 @@ MicroInvent funciona sin conexión a internet gracias a su arquitectura PWA:
 2. **Cola de Sincronización:** Las acciones offline se encolan
 3. **Sincronización Automática:** Al recuperar conexión, los cambios se sincronizan automáticamente
 4. **Indicadores Visuales:**
-   - 🟢 Online: Sincronización en tiempo real
-   - 🔴 Offline: Modo local, cambios en cola
-   - 🟠 Pendiente: Acciones esperando sincronización
+   - Estado Online: sincronización en tiempo real
+   - Estado Offline: modo local, cambios en cola
+   - Estado Pendiente: acciones esperando sincronización
 
 ![Indicador de Sincronización](docs/screenshots/sync-indicator.png)
 
@@ -489,7 +437,7 @@ MicroInvent funciona sin conexión a internet gracias a su arquitectura PWA:
 ---
 
 
-## 🗄 Arquitectura de Base de Datos
+## Arquitectura de Base de Datos
 
 El esquema utiliza un diseño optimizado para transacciones concurrentes con integridad referencial.
 
@@ -511,14 +459,14 @@ El esquema utiliza un diseño optimizado para transacciones concurrentes con int
 
 ### Relaciones
 
-- **users.branch_id** → branches.id (Asignación de usuario a sucursal)
-- **products.branch_id** → branches.id (Productos por sucursal)
-- **sessions.user_id** → users.id (Sesiones de usuario)
-- **sessions.branch_id** → branches.id (Sesión en sucursal específica)
+- **users.branch_id** -> branches.id (Asignación de usuario a sucursal)
+- **products.branch_id** -> branches.id (Productos por sucursal)
+- **sessions.user_id** -> users.id (Sesiones de usuario)
+- **sessions.branch_id** -> branches.id (Sesión en sucursal específica)
 
 ---
 
-## ☁️ Despliegue en AWS
+## Despliegue en AWS
 
 El proyecto está diseñado para desplegarse en AWS usando servicios administrados:
 
@@ -531,7 +479,7 @@ El proyecto está diseñado para desplegarse en AWS usando servicios administrad
 
 ---
 
-## 🔑 Credenciales de Prueba
+## Credenciales de Prueba
 
 Después de ejecutar los scripts de migración, el sistema incluye estos usuarios de prueba:
 
@@ -542,20 +490,20 @@ Después de ejecutar los scripts de migración, el sistema incluye estos usuario
 | `admin_norte` | `admin123` | Admin | Sucursal Norte |
 | `employee1` | `user123` | Employee | Matriz |
 
-**⚠️ Importante:** Cambiar estas contraseñas antes de producción.
+Importante: cambiar estas contraseñas antes de producción.
 
 ---
 
-## 📄 Licencia
+## Licencia
 
 MIT License - Ver archivo LICENSE para más detalles.
 
 ---
 
-## 👨‍💻 Desarrolladores
+## Desarrolladores
 
-- **Jorge Yorch** - Autenticación, Inventario, Gestión de Usuarios y Sucursales
-- **Angel** - Reportes, Dashboard, Sincronización Offline
+- **Jorge** - Desarrollo completo de backend y frontend (API Express/PostgreSQL, PWA React/Vite, sincronización offline/online, inventario, movimientos, transferencias, reportes, UX).
+- **Angel** - Despliegue en AWS (Amplify/Elastic Beanstalk/RDS/S3), contenedores Docker y pipelines de publicación.
 
 ---
 
