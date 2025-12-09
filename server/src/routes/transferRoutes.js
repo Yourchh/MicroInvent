@@ -27,4 +27,7 @@ router.put('/:id/complete', transferController.completeTransfer);
 // Cancelar transferencia (sucursal origen)
 router.put('/:id/cancel', transferController.cancelTransfer);
 
+// Rechazar transferencia (sucursal destino)
+router.put('/:id/reject', transferController.rejectTransfer);
+
 module.exports = router;

@@ -4,9 +4,6 @@ import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { Users as UsersIcon, Trash2, Pencil, Plus, X, Save, User, Shield, Wifi, WifiOff, Clock, CheckCircle2, Zap } from 'lucide-react';
 import { Button } from '../components/ui/Button';
-import { format } from 'date-fns';
-import { es } from 'date-fns/locale';
-
 import { useUserSync } from '../hooks/useUserSync'; 
 import { db } from '../db'; 
 import { addToQueue } from '../services/syncQueue'; 

@@ -16,16 +16,35 @@ const Transfer = {
       const { rows: [transfer] } = await client.query(transferQuery, [sourceBranchId, destBranchId, requesterUserId, transferType]);
 
       // Insertar items
+      const itemsData = [];
       for (const item of items) {
         const itemQuery = `
           INSERT INTO transfer_items (transfer_id, product_id, quantity)
           VALUES ($1, $2, $3)
+          RETURNING id, transfer_id, product_id, quantity
         `;
-        await client.query(itemQuery, [transfer.id, item.product_id, item.quantity]);
+        const { rows: [insertedItem] } = await client.query(itemQuery, [transfer.id, item.product_id, item.quantity]);
+        
+        // Obtener producto info
+        const productQuery = `
+          SELECT name, sku FROM products WHERE id = $1
+        `;
+        const { rows: [product] } = await client.query(productQuery, [item.product_id]);
+        
+        itemsData.push({
+          ...insertedItem,
+          product_name: product?.name,
+          sku: product?.sku
+        });
       }
 
       await client.query('COMMIT');
-      return transfer;
+      
+      // Retornar transfer con items
+      return {
+        ...transfer,
+        items: itemsData
+      };
     } catch (err) {
       await client.query('ROLLBACK');
       throw err;
@@ -34,7 +53,7 @@ const Transfer = {
     }
   },
 
-  // Obtener transferencias pendientes
+  // Obtener transferencias pendientes (solo para la sucursal que debe aprobar)
   getPending: async (branchId) => {
     const query = `
       SELECT 
@@ -45,6 +64,7 @@ const Transfer = {
         db.name as dest_branch,
         t.requester_user_id,
         u.username as requester,
+        t.transfer_type,
         t.status,
         t.created_at,
         COALESCE(json_agg(json_build_object(
@@ -60,8 +80,8 @@ const Transfer = {
       JOIN users u ON t.requester_user_id = u.id
       LEFT JOIN transfer_items ti ON t.id = ti.transfer_id
       LEFT JOIN products p ON ti.product_id = p.id
-      WHERE t.status = 'PENDING' AND (t.source_branch_id = $1 OR t.dest_branch_id = $1)
-      GROUP BY t.id, sb.name, db.name, u.username
+      WHERE t.status = 'PENDING' AND t.dest_branch_id = $1
+      GROUP BY t.id, sb.name, db.name, u.username, t.transfer_type
       ORDER BY t.created_at DESC
     `;
     const { rows } = await pool.query(query, [branchId]);
@@ -100,21 +120,10 @@ const Transfer = {
     const params = [];
     let paramIndex = 1;
 
-    // Filtro de dirección
-    if (direction === 'sent') {
-      query += ` AND t.source_branch_id = $${paramIndex}`;
-      params.push(branchId);
-      paramIndex++;
-    } else if (direction === 'received') {
-      query += ` AND t.dest_branch_id = $${paramIndex}`;
-      params.push(branchId);
-      paramIndex++;
-    } else {
-      // Sin filtro de dirección: mostrar todas (enviadas o recibidas)
-      query += ` AND (t.source_branch_id = $${paramIndex} OR t.dest_branch_id = $${paramIndex})`;
-      params.push(branchId);
-      paramIndex++;
-    }
+    // Filtro de dirección: mostrar todas (enviadas o recibidas)
+    query += ` AND (t.source_branch_id = $${paramIndex} OR t.dest_branch_id = $${paramIndex})`;
+    params.push(branchId);
+    paramIndex++;
 
     if (status) {
       query += ` AND t.status = $${paramIndex}`;
@@ -122,7 +131,7 @@ const Transfer = {
       paramIndex++;
     }
 
-    query += ` GROUP BY t.id, sb.name, db.name, u.username ORDER BY t.created_at DESC`;
+    query += ` GROUP BY t.id, sb.name, db.name, u.username, t.transfer_type ORDER BY t.created_at DESC`;
 
     const { rows } = await pool.query(query, params);
     return rows;
@@ -262,6 +271,18 @@ const Transfer = {
     const query = `
       UPDATE transfers
       SET status = 'CANCELLED'
+      WHERE id = $1 AND status = 'PENDING'
+      RETURNING *
+    `;
+    const { rows } = await pool.query(query, [transferId]);
+    return rows[0];
+  },
+
+  // Rechazar transferencia
+  reject: async (transferId) => {
+    const query = `
+      UPDATE transfers
+      SET status = 'REJECTED'
       WHERE id = $1 AND status = 'PENDING'
       RETURNING *
     `;

@@ -1,12 +1,20 @@
 const Transfer = require('../models/transferModel');
 const InventoryModel = require('../models/inventoryModel');
 
-// Crear solicitud de transferencia
+// Crear solicitud de transferencia (REQUEST o SEND)
 exports.createTransfer = async (req, res) => {
   try {
     const { dest_branch_id, items, transfer_type = 'REQUEST' } = req.body;
-    const sourceBranchId = req.user.branch_id;
+    const currentBranchId = req.user.branch_id;
     const requesterUserId = req.user.id;
+
+    console.log('📨 createTransfer - Datos recibidos:', {
+      dest_branch_id,
+      transfer_type,
+      items,
+      currentBranchId,
+      requesterUserId
+    });
 
     // Validar datos
     if (!dest_branch_id) {
@@ -17,15 +25,30 @@ exports.createTransfer = async (req, res) => {
       return res.status(400).json({ message: 'Debe incluir al menos un producto' });
     }
 
-    if (sourceBranchId === dest_branch_id) {
+    if (currentBranchId === dest_branch_id) {
       return res.status(400).json({ message: 'No puedes transferir a la misma sucursal' });
     }
 
-    // Para SEND: validar que hay stock suficiente en la sucursal origen
-    // Para REQUEST: no validamos stock aquí, se valida al aprobar
+    // Determinar source y dest según el tipo de transferencia
+    let sourceBranchId, destBranchId;
+    
+    if (transfer_type === 'REQUEST') {
+      // REQUEST: Yo (currentBranch) solicito a otra sucursal (dest_branch_id)
+      // → El stock vendrá DE dest_branch_id (source) HACIA mí (dest)
+      sourceBranchId = dest_branch_id;  // Quien tiene el stock
+      destBranchId = currentBranchId;   // Quien lo recibirá (yo)
+    } else {
+      // SEND: Yo (currentBranch) envío a otra sucursal (dest_branch_id)
+      // → El stock saldrá DE mí (source) HACIA dest_branch_id (dest)
+      sourceBranchId = currentBranchId; // Quien envía (yo)
+      destBranchId = dest_branch_id;    // Quien recibirá
+    }
+
+    // Para SEND: validar que YO tengo stock suficiente
+    // Para REQUEST: validar que la OTRA sucursal tiene stock (en approve)
     if (transfer_type === 'SEND') {
       for (const item of items) {
-        const inventory = await InventoryModel.findById(sourceBranchId, item.product_id);
+        const inventory = await InventoryModel.findById(currentBranchId, item.product_id);
         if (!inventory || inventory.quantity < item.quantity) {
           return res.status(400).json({ 
             message: `Stock insuficiente del producto ${item.product_id}. Disponible: ${inventory?.quantity || 0}` 
@@ -34,16 +57,16 @@ exports.createTransfer = async (req, res) => {
       }
     }
 
-    // Crear transferencia
+    // Crear transferencia con source/dest correctos
     const transfer = await Transfer.create(
       sourceBranchId,
-      dest_branch_id,
+      destBranchId,
       requesterUserId,
       items,
       transfer_type
     );
 
-    console.log(`✅ Transferencia ${transfer_type} creada: ${transfer.id} desde sucursal ${sourceBranchId}`);
+    console.log(`✅ Transferencia ${transfer_type} creada: ${transfer.id} | Source: ${sourceBranchId} → Dest: ${destBranchId}`);
 
     res.status(201).json({
       message: 'Solicitud de transferencia creada',
@@ -55,7 +78,7 @@ exports.createTransfer = async (req, res) => {
   }
 };
 
-// Obtener transferencias pendientes
+// Obtener transferencias pendientes (solo para la sucursal que debe aprobar)
 exports.getPendingTransfers = async (req, res) => {
   try {
     const branchId = req.user.branch_id;
@@ -76,9 +99,9 @@ exports.getPendingTransfers = async (req, res) => {
 exports.getTransfers = async (req, res) => {
   try {
     const branchId = req.user.branch_id;
-    const { status, direction } = req.query;
+    const { status } = req.query;
 
-    const transfers = await Transfer.getByBranch(branchId, status || null, direction || null);
+    const transfers = await Transfer.getByBranch(branchId, status || null);
 
     res.json({
       count: transfers.length,
@@ -115,6 +138,7 @@ exports.getTransfer = async (req, res) => {
 };
 
 // Aprobar transferencia (solo para sucursal destino)
+// Esto descuenta el stock de la sucursal origen
 exports.approveTransfer = async (req, res) => {
   try {
     const { id } = req.params;
@@ -159,7 +183,42 @@ exports.approveTransfer = async (req, res) => {
   }
 };
 
+// Rechazar transferencia (solo para sucursal destino)
+exports.rejectTransfer = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const branchId = req.user.branch_id;
+
+    const transfer = await Transfer.findById(id);
+    if (!transfer) {
+      return res.status(404).json({ message: 'Transferencia no encontrada' });
+    }
+
+    // Solo la sucursal destino puede rechazar
+    if (transfer.dest_branch_id !== branchId) {
+      return res.status(403).json({ message: 'Solo la sucursal destino puede rechazar la transferencia' });
+    }
+
+    if (transfer.status !== 'PENDING') {
+      return res.status(400).json({ message: 'La transferencia no puede ser rechazada en este estado' });
+    }
+
+    const rejected = await Transfer.reject(id);
+
+    console.log(`✅ Transferencia ${id} rechazada por sucursal destino`);
+
+    res.json({
+      message: 'Transferencia rechazada',
+      transfer: rejected
+    });
+  } catch (err) {
+    console.error('❌ Error en rejectTransfer:', err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
 // Completar transferencia (confirmar recepción)
+// Esto suma el stock a la sucursal destino
 exports.completeTransfer = async (req, res) => {
   try {
     const { id } = req.params;
@@ -193,7 +252,7 @@ exports.completeTransfer = async (req, res) => {
   }
 };
 
-// Cancelar transferencia
+// Cancelar transferencia (solo sucursal origen antes de aprobación)
 exports.cancelTransfer = async (req, res) => {
   try {
     const { id } = req.params;
@@ -210,7 +269,7 @@ exports.cancelTransfer = async (req, res) => {
     }
 
     if (transfer.status !== 'PENDING') {
-      return res.status(400).json({ message: 'Solo se pueden cancelar transferencias pendientes' });
+      return res.status(400).json({ message: 'La transferencia no puede ser cancelada en este estado' });
     }
 
     const cancelled = await Transfer.cancel(id);

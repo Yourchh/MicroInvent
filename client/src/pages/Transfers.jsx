@@ -116,6 +116,21 @@ export default function Transfers() {
     }
   });
 
+  // Rechazar transferencia
+  const rejectMutation = useMutation({
+    mutationFn: async (transferId) => {
+      return await api.put(`/transfers/${transferId}/reject`, {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['transfers'] });
+      alert('✅ Transferencia rechazada');
+      refetch();
+    },
+    onError: (err) => {
+      alert('❌ Error: ' + (err.response?.data?.message || err.message));
+    }
+  });
+
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!formData.dest_branch_id || !formData.products[0].product_id) {
@@ -165,6 +180,7 @@ export default function Transfers() {
       case 'IN_TRANSIT': return 'bg-blue-100 text-blue-700';
       case 'COMPLETED': return 'bg-green-100 text-green-700';
       case 'CANCELLED': return 'bg-red-100 text-red-700';
+      case 'REJECTED': return 'bg-orange-100 text-orange-700';
       default: return 'bg-slate-100 text-slate-600';
     }
   };
@@ -174,7 +190,8 @@ export default function Transfers() {
       'PENDING': 'Pendiente',
       'IN_TRANSIT': 'En Tránsito',
       'COMPLETED': 'Completado',
-      'CANCELLED': 'Cancelado'
+      'CANCELLED': 'Cancelado',
+      'REJECTED': 'Rechazado'
     };
     return labels[status] || status;
   };
@@ -202,6 +219,21 @@ export default function Transfers() {
     return items?.reduce((sum, item) => sum + (item.quantity || 0), 0) || 0;
   };
 
+  // Filtrar transferencias por dirección
+  const filteredTransfers = (transfersData.transfers || []).filter(transfer => {
+    if (!filterDirection) return true;
+    
+    const userBranchId = user?.branch_id;
+    if (filterDirection === 'sent') {
+      // Enviadas: donde yo soy el source
+      return transfer.source_branch_id === userBranchId;
+    } else if (filterDirection === 'received') {
+      // Recibidas: donde yo soy el dest
+      return transfer.dest_branch_id === userBranchId;
+    }
+    return true;
+  });
+
   const canApprove = (transfer) => {
     return transfer.status === 'PENDING' && transfer.dest_branch_id === user?.branch_id;
   };
@@ -212,6 +244,10 @@ export default function Transfers() {
 
   const canCancel = (transfer) => {
     return transfer.status === 'PENDING' && transfer.source_branch_id === user?.branch_id;
+  };
+
+  const canReject = (transfer) => {
+    return transfer.status === 'PENDING' && transfer.dest_branch_id === user?.branch_id;
   };
 
   return (
@@ -261,6 +297,7 @@ export default function Transfers() {
           <option value="IN_TRANSIT">En Tránsito</option>
           <option value="COMPLETED">Entregadas</option>
           <option value="CANCELLED">Canceladas</option>
+          <option value="REJECTED">Rechazadas</option>
         </select>
       </div>
 
@@ -283,7 +320,7 @@ export default function Transfers() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {transfersData.transfers?.map((transfer) => (
+              {filteredTransfers.map((transfer) => (
                 <>
                   <tr key={transfer.id} className="hover:bg-slate-50 transition-colors cursor-pointer" onClick={() => setExpandedTransfer(expandedTransfer === transfer.id ? null : transfer.id)}>
                     <td className="px-6 py-4 font-mono text-sm font-bold text-primary">#{transfer.id}</td>
@@ -342,6 +379,16 @@ export default function Transfers() {
                             title="Aprobar transferencia"
                           >
                             <Check size={14} className="inline mr-1" /> Aprobar
+                          </button>
+                        )}
+                        {canReject(transfer) && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); rejectMutation.mutate(transfer.id); }}
+                            disabled={rejectMutation.isPending}
+                            className="px-3 py-1 bg-orange-100 hover:bg-orange-200 text-orange-700 rounded text-xs font-medium transition-colors"
+                            title="Rechazar transferencia"
+                          >
+                            <X size={14} className="inline mr-1" /> Rechazar
                           </button>
                         )}
                         {canComplete(transfer) && (

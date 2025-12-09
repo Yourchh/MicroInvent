@@ -3,15 +3,16 @@ import Dexie from 'dexie';
 
 export const db = new Dexie('MicroInventDB');
 
-// Subimos la versión a 4 para incluir stock por sucursal
-db.version(5)
+// Subimos la versión a 6 para incluir transfers
+db.version(6)
   .stores({
     // Indexamos quantity/min/max para filtros y actualizaciones offline
     inventory: 'id, branch_id, sku, product_name, synced_at, quantity, min_stock, max_stock',
     branches: 'id, name',
     mutations: '++id, type, payload, tempId, timestamp',
     users: 'id, username, role, created_at',
-    movements: 'id, branch_id, product_id, type, created_at, temp'
+    movements: 'id, branch_id, product_id, type, created_at, temp',
+    transfers: 'id, source_branch_id, dest_branch_id, status, transfer_type, created_at'
   })
   .upgrade(async (tx) => {
     // Garantiza que registros anteriores tengan los campos de stock
