@@ -47,6 +47,33 @@ const Movement = {
     return rows;
   },
 
+  // Obtener TODOS los movimientos (para superadmin)
+  getAll: async (limit = 100, offset = 0) => {
+    const query = `
+      SELECT 
+        m.id,
+        m.branch_id,
+        b.name as branch_name,
+        m.product_id,
+        p.sku,
+        p.name as product_name,
+        m.user_id,
+        u.username,
+        m.type,
+        m.quantity,
+        m.reason,
+        m.created_at
+      FROM movements m
+      JOIN branches b ON m.branch_id = b.id
+      JOIN products p ON m.product_id = p.id
+      JOIN users u ON m.user_id = u.id
+      ORDER BY m.created_at DESC
+      LIMIT $1 OFFSET $2
+    `;
+    const { rows } = await pool.query(query, [limit, offset]);
+    return rows;
+  },
+
   // Obtener movimientos por tipo
   getByType: async (branchId, type, limit = 100) => {
     const query = `

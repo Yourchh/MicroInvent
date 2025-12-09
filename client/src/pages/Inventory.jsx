@@ -11,10 +11,6 @@ import { addToQueue } from '../services/syncQueue';
 export default function Inventory() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  
-  // Solo superadmin puede cambiar de sucursal, los demás están fijos en su sucursal
-  const isSuperAdmin = user?.role === 'superadmin';
-  const [selectedBranchId, setSelectedBranchId] = useState(user?.branch_id || 1);
 
   // 1. QUERY DE SUCURSALES - Con caché offline
   const { data: branches = [] } = useQuery({
@@ -48,7 +44,7 @@ export default function Inventory() {
   });
 
   // 2. USAR EL HOOK OFFLINE-FIRST
-  const { inventory: products, isOnline, isSyncing } = useInventorySync(selectedBranchId);
+  const { inventory: products, isOnline, isSyncing } = useInventorySync(user?.branch_id);
 
   // Estados UI
   const [search, setSearch] = useState('');
@@ -68,8 +64,8 @@ export default function Inventory() {
   const handleSuccess = async (msg) => {
     closeModal();
     // Invalidar usando la clave con branchId para refrescar los datos correctos
-    queryClient.invalidateQueries({ queryKey: ['syncInventory', selectedBranchId] }).catch(console.error);
-    queryClient.refetchQueries({ queryKey: ['syncInventory', selectedBranchId] }).catch(console.error);
+    queryClient.invalidateQueries({ queryKey: ['syncInventory', user?.branch_id] }).catch(console.error);
+    queryClient.refetchQueries({ queryKey: ['syncInventory', user?.branch_id] }).catch(console.error);
     if (isOnline) { 
         alert(msg);
     }
@@ -83,7 +79,7 @@ export default function Inventory() {
   // --- MUTACIONES (Código igual al original...) ---
   const createMutation = useMutation({
     mutationFn: async (data) => {
-      const payload = { ...data, branch_id: selectedBranchId, initial_stock: data.quantity, min_stock: data.min_stock, max_stock: data.max_stock || null };
+      const payload = { ...data, branch_id: user?.branch_id, initial_stock: data.quantity, min_stock: data.min_stock, max_stock: data.max_stock || null };
 
       if (isOnline) {
         await api.post('/products', payload);
@@ -93,7 +89,7 @@ export default function Inventory() {
           // Primero guardar en inventory
           await db.inventory.add({
             id: tempId, 
-            branch_id: selectedBranchId,
+            branch_id: user?.branch_id,
             sku: data.sku,
             product_name: data.name, 
             price: data.price,
@@ -121,7 +117,7 @@ export default function Inventory() {
         ...data, 
         min_stock: data.min_stock, 
         max_stock: data.max_stock || null,
-        branch_id: selectedBranchId,
+        branch_id: user?.branch_id,
         quantity: data.quantity
       };
       
@@ -283,21 +279,9 @@ export default function Inventory() {
           <MapPin size={16} />
           Sucursal:
         </label>
-        {isSuperAdmin ? (
-          <select 
-            value={selectedBranchId} 
-            onChange={(e) => setSelectedBranchId(Number(e.target.value))}
-            className="px-3 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            {branches.map(b => (
-              <option key={b.id} value={b.id}>{b.name}</option>
-            ))}
-          </select>
-        ) : (
-          <div className="px-4 py-2 bg-slate-100 border border-slate-200 rounded-lg text-slate-700 font-medium">
-            {branches.find(b => b.id === selectedBranchId)?.name || 'Cargando...'}
-          </div>
-        )}
+        <div className="px-4 py-2 bg-slate-100 border border-slate-200 rounded-lg text-slate-700 font-medium">
+          {branches.find(b => b.id === user?.branch_id)?.name || 'Cargando...'}
+        </div>
       </div>
 
       {errorMsg && (

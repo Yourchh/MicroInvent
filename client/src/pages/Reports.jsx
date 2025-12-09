@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
-import { FileText, Download, Package, TrendingUp, ShieldAlert, DollarSign, WifiOff, X } from 'lucide-react';
+import { FileText, Download, Package, TrendingUp, ShieldAlert, DollarSign, WifiOff, X, CheckCircle2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import jsPDF from 'jspdf';
@@ -11,7 +11,7 @@ import autoTable from 'jspdf-autotable';
 export default function Reports() {
   const { user } = useAuth();
   const branchId = user?.branch_id || 1;
-  const [reportType, setReportType] = useState('STOCK'); // STOCK, MOVEMENTS, VALUE
+  const [reportType, setReportType] = useState('STOCK'); // STOCK, MOVEMENTS, VALUE, TRANSFERS, LOW_STOCK
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [showOfflineAlert, setShowOfflineAlert] = useState(true);
 
@@ -46,7 +46,19 @@ export default function Reports() {
     queryFn: async () => (await api.get(`/reports/inventory-value/${branchId}`)).data
   });
 
-  const isLoading = loadStock || loadMove || loadValue;
+  // D. Transferencias
+  const { data: transfersData, isLoading: loadTransfers } = useQuery({
+    queryKey: ['transfers', branchId],
+    queryFn: async () => {
+      const response = await api.get('/transfers');
+      return response.data?.transfers || [];
+    }
+  });
+
+  // E. Stock bajo
+  const lowStockItems = (stockData || []).filter(item => item.quantity <= (item.min_stock || 5));
+
+  const isLoading = loadStock || loadMove || loadValue || loadTransfers;
 
   // --- 2. LÓGICA DE EXPORTACIÓN ---
 
@@ -123,6 +135,50 @@ export default function Reports() {
       });
       doc.save(`financiero_${branchId}.pdf`);
     }
+    else if (reportType === 'LOW_STOCK') {
+      addHeader(doc, "Reporte de Stock Bajo");
+      const lowStock = (stockData || []).filter(item => item.quantity <= (item.min_stock || 5));
+      
+      if (lowStock.length === 0) {
+        doc.setFontSize(12);
+        doc.setTextColor(100);
+        doc.text("No hay artículos con stock bajo", 14, 40);
+      } else {
+        autoTable(doc, {
+          startY: 30,
+          head: [['SKU', 'Producto', 'Stock Actual', 'Mínimo', 'Diferencia']],
+          body: lowStock.map(item => [
+            item.sku,
+            item.product_name,
+            item.quantity,
+            item.min_stock || 5,
+            (item.min_stock || 5) - item.quantity
+          ]),
+          theme: 'grid',
+          headStyles: { fillColor: [220, 38, 38] }
+        });
+      }
+      doc.save(`stock_bajo_${branchId}.pdf`);
+    }
+    else if (reportType === 'TRANSFERS') {
+      addHeader(doc, "Reporte de Transferencias");
+      autoTable(doc, {
+        startY: 30,
+        head: [['ID', 'Tipo', 'Origen → Destino', 'Productos', 'Estado', 'Fecha']],
+        body: (transfersData || []).map(t => [
+          `#${t.id}`,
+          t.transfer_type === 'REQUEST' ? 'Solicitud' : 'Envío',
+          `${t.source_branch} → ${t.dest_branch}`,
+          t.items?.length || 0,
+          t.status,
+          format(new Date(t.created_at), "dd/MM/yyyy")
+        ]),
+        theme: 'grid',
+        headStyles: { fillColor: [147, 51, 234] },
+        styles: { fontSize: 9 }
+      });
+      doc.save(`transferencias_${branchId}.pdf`);
+    }
   };
 
   // Generar PDF Completo (Todas las secciones)
@@ -144,33 +200,38 @@ export default function Reports() {
     autoTable(doc, {
       startY: 40,
       head: [['Producto', 'Stock', 'Valor Total']],
-      body: valueData?.details?.map(i => [i.name, i.quantity, `$${i.total_value}`]),
+      body: (valueData?.details || []).map(i => [i.name, i.quantity, `$${i.total_value}`]),
       theme: 'striped',
       headStyles: { fillColor: [16, 185, 129] }
     });
 
     // Sección 2: Stock Crítico
-    // Filtramos solo lo importante para el reporte ejecutivo
-    const criticalStock = stockData?.filter(i => i.quantity <= 5) || [];
+    const criticalStock = (stockData || []).filter(i => i.quantity <= 5);
     if (criticalStock.length > 0) {
         doc.addPage();
         addHeader(doc, "2. Alertas de Stock Bajo");
         autoTable(doc, {
           startY: 30,
-          head: [['SKU', 'Producto', 'Stock Actual']],
-          body: criticalStock.map(i => [i.sku, i.product_name, i.quantity]),
+          head: [['SKU', 'Producto', 'Stock Actual', 'Mínimo', 'Diferencia']],
+          body: criticalStock.map(i => [
+            i.sku,
+            i.product_name,
+            i.quantity,
+            i.min_stock || 5,
+            (i.min_stock || 5) - i.quantity
+          ]),
           theme: 'grid',
           headStyles: { fillColor: [220, 38, 38] }
         });
     }
 
-    // Sección 3: Auditoría (Últimos 50)
+    // Sección 3: Auditoría (Últimos Movimientos)
     doc.addPage();
     addHeader(doc, "3. Últimos Movimientos (Auditoría)");
     autoTable(doc, {
       startY: 30,
       head: [['Fecha', 'Acción', 'Producto', 'Usuario']],
-      body: moveData?.map(m => [
+      body: (moveData || []).map(m => [
         format(new Date(m.created_at), "dd/MM HH:mm"),
         `${m.type} (${m.quantity})`,
         m.product_name,
@@ -180,6 +241,26 @@ export default function Reports() {
       styles: { fontSize: 8 },
       headStyles: { fillColor: [100, 116, 139] }
     });
+
+    // Sección 4: Transferencias (si las hay)
+    if ((transfersData || []).length > 0) {
+      doc.addPage();
+      addHeader(doc, "4. Historial de Transferencias");
+      autoTable(doc, {
+        startY: 30,
+        head: [['ID', 'Tipo', 'Origen → Destino', 'Productos', 'Estado']],
+        body: (transfersData || []).map(t => [
+          `#${t.id}`,
+          t.transfer_type === 'REQUEST' ? 'Solicitud' : 'Envío',
+          `${t.source_branch} → ${t.dest_branch}`,
+          t.items?.length || 0,
+          t.status
+        ]),
+        theme: 'grid',
+        styles: { fontSize: 9 },
+        headStyles: { fillColor: [147, 51, 234] }
+      });
+    }
 
     doc.save(`Reporte_Completo_${fecha}.pdf`);
   };
@@ -260,6 +341,26 @@ export default function Reports() {
             }`}
           >
             <DollarSign size={18} /> Financiero
+          </button>
+          <button
+            onClick={() => setReportType('LOW_STOCK')}
+            className={`py-4 px-1 inline-flex items-center gap-2 border-b-2 font-medium text-sm ${
+              reportType === 'LOW_STOCK'
+                ? 'border-red-500 text-red-600'
+                : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+            }`}
+          >
+            <ShieldAlert size={18} /> Stock Bajo
+          </button>
+          <button
+            onClick={() => setReportType('TRANSFERS')}
+            className={`py-4 px-1 inline-flex items-center gap-2 border-b-2 font-medium text-sm ${
+              reportType === 'TRANSFERS'
+                ? 'border-purple-500 text-purple-600'
+                : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+            }`}
+          >
+            <TrendingUp size={18} /> Transferencias
           </button>
         </nav>
       </div>
@@ -367,6 +468,108 @@ export default function Reports() {
                 ))}
               </tbody>
             </table>
+          </>
+        )}
+
+        {/* VISTA: STOCK BAJO */}
+        {reportType === 'LOW_STOCK' && (
+          <>
+            <div className="p-4 bg-red-50 border-b border-red-100 flex justify-between items-center">
+              <span className="text-red-800 font-medium">Artículos con Stock Bajo</span>
+              <span className="text-2xl font-bold text-red-700">{lowStockItems.length}</span>
+            </div>
+            {lowStockItems.length === 0 ? (
+              <div className="p-8 text-center text-slate-500">
+                <CheckCircle2 size={32} className="mx-auto mb-2 text-green-500" />
+                <p>¡Excelente! No hay artículos con stock bajo</p>
+              </div>
+            ) : (
+              <table className="w-full text-left">
+                <thead className="bg-red-50/30 border-b border-slate-200">
+                  <tr>
+                    <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase">SKU</th>
+                    <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase">Producto</th>
+                    <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase text-center">Stock Actual</th>
+                    <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase text-center">Stock Mínimo</th>
+                    <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase text-center">Diferencia</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {lowStockItems.map((item) => (
+                    <tr key={item.inventory_id || item.product_id} className="hover:bg-red-50">
+                      <td className="px-6 py-3 text-sm font-mono text-slate-600">{item.sku}</td>
+                      <td className="px-6 py-3 text-sm font-medium">{item.product_name}</td>
+                      <td className="px-6 py-3 text-sm text-center font-bold text-red-700">{item.quantity}</td>
+                      <td className="px-6 py-3 text-sm text-center">{item.min_stock || 5}</td>
+                      <td className="px-6 py-3 text-sm text-center text-red-600 font-bold">
+                        {(item.min_stock || 5) - item.quantity}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </>
+        )}
+
+        {/* VISTA: TRANSFERENCIAS */}
+        {reportType === 'TRANSFERS' && (
+          <>
+            <div className="p-4 bg-purple-50 border-b border-purple-100 flex justify-between items-center">
+              <span className="text-purple-800 font-medium">Historial de Transferencias</span>
+              <span className="text-2xl font-bold text-purple-700">{transfersData.length}</span>
+            </div>
+            {transfersData.length === 0 ? (
+              <div className="p-8 text-center text-slate-500">
+                <Package size={32} className="mx-auto mb-2 text-slate-400" />
+                <p>No hay transferencias registradas</p>
+              </div>
+            ) : (
+              <table className="w-full text-left">
+                <thead className="bg-purple-50/30 border-b border-slate-200">
+                  <tr>
+                    <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase">ID</th>
+                    <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase">Tipo</th>
+                    <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase">Origen → Destino</th>
+                    <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase text-center">Productos</th>
+                    <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase">Estado</th>
+                    <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase">Fecha</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {transfersData.map((transfer) => (
+                    <tr key={transfer.id} className="hover:bg-purple-50">
+                      <td className="px-6 py-3 text-sm font-mono text-slate-600">#{transfer.id}</td>
+                      <td className="px-6 py-3 text-sm">
+                        <span className={`px-2 py-1 rounded text-xs font-bold ${
+                          transfer.transfer_type === 'REQUEST' 
+                            ? 'bg-blue-100 text-blue-700'
+                            : 'bg-purple-100 text-purple-700'
+                        }`}>
+                          {transfer.transfer_type === 'REQUEST' ? 'Solicitud' : 'Envío'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-3 text-sm">{transfer.source_branch} → {transfer.dest_branch}</td>
+                      <td className="px-6 py-3 text-sm text-center font-medium">{transfer.items?.length || 0}</td>
+                      <td className="px-6 py-3 text-sm">
+                        <span className={`px-2 py-1 rounded text-xs font-bold ${
+                          transfer.status === 'COMPLETED' ? 'bg-green-100 text-green-700' :
+                          transfer.status === 'IN_TRANSIT' ? 'bg-blue-100 text-blue-700' :
+                          transfer.status === 'PENDING' ? 'bg-yellow-100 text-yellow-700' :
+                          transfer.status === 'REJECTED' ? 'bg-red-100 text-red-700' :
+                          'bg-slate-100 text-slate-700'
+                        }`}>
+                          {transfer.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-3 text-sm text-slate-600">
+                        {format(new Date(transfer.created_at), "dd/MM/yyyy HH:mm")}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </>
         )}
       </div>

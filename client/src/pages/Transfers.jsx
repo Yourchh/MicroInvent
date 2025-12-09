@@ -26,7 +26,7 @@ export default function Transfers() {
 
   // Cargar sucursales
   const { data: branches = [] } = useQuery({
-    queryKey: ['branches'],
+    queryKey: ['branches', user?.branch_id],
     queryFn: async () => {
       const response = await api.get('/branches');
       return response.data.filter(b => b.id !== user?.branch_id); // Excluir sucursal actual
@@ -44,7 +44,7 @@ export default function Transfers() {
 
   // Cargar transferencias
   const { data: transfersData = {}, isLoading, refetch } = useQuery({
-    queryKey: ['transfers', filterStatus, filterDirection],
+    queryKey: ['transfers', user?.branch_id, filterStatus, filterDirection],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (filterStatus) params.append('status', filterStatus);
@@ -60,7 +60,7 @@ export default function Transfers() {
       return await api.post('/transfers', data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['transfers'] });
+      queryClient.invalidateQueries({ queryKey: ['transfers', user?.branch_id] });
       setShowModal(false);
       setFormData({ transfer_type: 'REQUEST', dest_branch_id: '', products: [{ product_id: '', quantity: '' }] });
       alert('✅ Solicitud de transferencia creada');
@@ -77,7 +77,7 @@ export default function Transfers() {
       return await api.put(`/transfers/${transferId}/approve`, {});
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['transfers'] });
+      queryClient.invalidateQueries({ queryKey: ['transfers', user?.branch_id] });
       alert('✅ Transferencia aprobada');
       refetch();
     },
@@ -92,7 +92,7 @@ export default function Transfers() {
       return await api.put(`/transfers/${transferId}/complete`, {});
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['transfers'] });
+      queryClient.invalidateQueries({ queryKey: ['transfers', user?.branch_id] });
       alert('✅ Transferencia completada');
       refetch();
     },
@@ -107,7 +107,7 @@ export default function Transfers() {
       return await api.put(`/transfers/${transferId}/cancel`, {});
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['transfers'] });
+      queryClient.invalidateQueries({ queryKey: ['transfers', user?.branch_id] });
       alert('✅ Transferencia cancelada');
       refetch();
     },
@@ -122,7 +122,7 @@ export default function Transfers() {
       return await api.put(`/transfers/${transferId}/reject`, {});
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['transfers'] });
+      queryClient.invalidateQueries({ queryKey: ['transfers', user?.branch_id] });
       alert('✅ Transferencia rechazada');
       refetch();
     },
@@ -297,15 +297,22 @@ export default function Transfers() {
 
       {/* Filtros */}
       <div className="flex gap-2">
-        <select
-          value={filterDirection}
-          onChange={(e) => setFilterDirection(e.target.value)}
-          className="px-4 py-2 border border-slate-300 rounded-lg outline-none bg-white text-sm"
-        >
-          <option value="">Todas (Enviadas/Recibidas)</option>
-          <option value="sent">Enviadas</option>
-          <option value="received">Recibidas</option>
-        </select>
+        {user?.role !== 'superadmin' && (
+          <select
+            value={filterDirection}
+            onChange={(e) => setFilterDirection(e.target.value)}
+            className="px-4 py-2 border border-slate-300 rounded-lg outline-none bg-white text-sm"
+          >
+            <option value="">Todas (Enviadas/Recibidas)</option>
+            <option value="sent">Enviadas</option>
+            <option value="received">Recibidas</option>
+          </select>
+        )}
+        {user?.role === 'superadmin' && (
+          <div className="px-4 py-2 bg-blue-50 text-blue-700 text-sm rounded-lg border border-blue-200">
+            Viendo todas las transferencias (superadmin)
+          </div>
+        )}
         <select
           value={filterStatus}
           onChange={(e) => setFilterStatus(e.target.value)}

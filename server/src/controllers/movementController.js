@@ -79,8 +79,17 @@ exports.getMovements = async (req, res) => {
   try {
     const branchId = req.user.branch_id;
     const { limit = 100, offset = 0 } = req.query;
+    const isSuperAdmin = req.user.role === 'superadmin';
 
-    const movements = await Movement.getByBranch(branchId, parseInt(limit), parseInt(offset));
+    let movements;
+    
+    if (isSuperAdmin) {
+      // Superadmin ve TODOS los movimientos
+      movements = await Movement.getAll(parseInt(limit), parseInt(offset));
+    } else {
+      // Admin/User ve solo los de su sucursal
+      movements = await Movement.getByBranch(branchId, parseInt(limit), parseInt(offset));
+    }
 
     res.json({
       count: movements.length,

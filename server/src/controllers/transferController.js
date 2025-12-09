@@ -100,8 +100,17 @@ exports.getTransfers = async (req, res) => {
   try {
     const branchId = req.user.branch_id;
     const { status } = req.query;
+    const isSuperAdmin = req.user.role === 'superadmin';
 
-    const transfers = await Transfer.getByBranch(branchId, status || null);
+    let transfers;
+    
+    if (isSuperAdmin) {
+      // Superadmin ve TODAS las transferencias
+      transfers = await Transfer.getAll(status || null);
+    } else {
+      // Admin/User ve solo las de su sucursal
+      transfers = await Transfer.getByBranch(branchId, status || null);
+    }
 
     res.json({
       count: transfers.length,

@@ -4,6 +4,12 @@ const pool = require('../config/db');
 const getMovementReport = async (req, res) => {
   try {
     const { branchId } = req.params;
+    const user = req.user;
+    
+    // Validar permisos: No-superadmin solo ve su rama
+    if (user.role !== 'superadmin' && user.branch_id !== Number(branchId)) {
+      return res.status(403).json({ message: 'No tienes permiso para ver reportes de otra sucursal' });
+    }
     
     // Traemos datos del movimiento + nombre del producto + nombre del usuario
     const query = `
@@ -36,6 +42,12 @@ const getMovementReport = async (req, res) => {
 const getInventoryValueReport = async (req, res) => {
   try {
     const { branchId } = req.params;
+    const user = req.user;
+    
+    // Validar permisos: No-superadmin solo ve su rama
+    if (user.role !== 'superadmin' && user.branch_id !== Number(branchId)) {
+      return res.status(403).json({ message: 'No tienes permiso para ver reportes de otra sucursal' });
+    }
 
     // Calculamos el valor total (Precio * Cantidad)
     const query = `

@@ -137,6 +137,50 @@ const Transfer = {
     return rows;
   },
 
+  // Obtener TODAS las transferencias (para superadmin)
+  getAll: async (status = null) => {
+    let query = `
+      SELECT 
+        t.id,
+        t.source_branch_id,
+        sb.name as source_branch,
+        t.dest_branch_id,
+        db.name as dest_branch,
+        t.requester_user_id,
+        u.username as requester_username,
+        t.transfer_type,
+        t.status,
+        t.created_at,
+        COALESCE(json_agg(json_build_object(
+          'id', ti.id,
+          'product_id', ti.product_id,
+          'product_name', p.name,
+          'sku', p.sku,
+          'quantity', ti.quantity
+        )) FILTER (WHERE ti.id IS NOT NULL), '[]') as items
+      FROM transfers t
+      JOIN branches sb ON t.source_branch_id = sb.id
+      JOIN branches db ON t.dest_branch_id = db.id
+      JOIN users u ON t.requester_user_id = u.id
+      LEFT JOIN transfer_items ti ON t.id = ti.transfer_id
+      LEFT JOIN products p ON ti.product_id = p.id
+      WHERE 1=1
+    `;
+    const params = [];
+    let paramIndex = 1;
+
+    if (status) {
+      query += ` AND t.status = $${paramIndex}`;
+      params.push(status);
+      paramIndex++;
+    }
+
+    query += ` GROUP BY t.id, sb.name, db.name, u.username, t.transfer_type ORDER BY t.created_at DESC`;
+
+    const { rows } = await pool.query(query, params);
+    return rows;
+  },
+
   // Obtener una transferencia específica
   findById: async (id) => {
     const query = `

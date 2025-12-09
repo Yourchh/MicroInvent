@@ -18,7 +18,7 @@ export function useTransfersSync(branchId) {
       }
       setIsOnline(true);
       wasOfflineRef.current = false;
-      await queryClient.invalidateQueries({ queryKey: ['syncTransfers'] });
+      await queryClient.invalidateQueries({ queryKey: ['syncTransfers', branchId] });
     };
 
     const handleOffline = () => {
@@ -33,7 +33,7 @@ export function useTransfersSync(branchId) {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
-  }, [queryClient]);
+  }, [queryClient, branchId]);
 
   // 2. Leer datos locales
   const localTransfers = useLiveQuery(

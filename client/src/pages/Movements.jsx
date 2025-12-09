@@ -45,12 +45,14 @@ export default function Movements() {
         const response = await api.post('/movements', data);
         
         // Guardar en IndexedDB
-        const movement = response.data;
-        await db.movements.put({
-          ...movement,
-          branch_id: user?.branch_id,
-          temp: false
-        });
+        const movement = response.data?.movement;
+        if (movement && movement.id) {
+          await db.movements.put({
+            ...movement,
+            branch_id: user?.branch_id,
+            temp: false
+          });
+        }
         
         return response;
       } else {
@@ -69,15 +71,21 @@ export default function Movements() {
           temp: true
         };
         
-        await db.movements.put(tempMovement);
+        try {
+          await db.movements.put(tempMovement);
+        } catch (err) {
+          console.error('Error guardando en IndexedDB:', err);
+          throw new Error('Error al guardar movimiento localmente');
+        }
+        
         await addToQueue('CREATE_MOVEMENT', data, tempId);
         
         return { data: tempMovement };
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['syncMovements'] });
-      queryClient.invalidateQueries({ queryKey: ['syncInventory'] });
+      queryClient.invalidateQueries({ queryKey: ['syncMovements', user?.branch_id] });
+      queryClient.invalidateQueries({ queryKey: ['syncInventory', user?.branch_id] });
       setShowModal(false);
       setFormData({ product_id: '', type: 'IN', quantity: '', reason: '' });
       alert(isOnline ? '✅ Movimiento registrado exitosamente' : '✅ Movimiento guardado (se sincronizará cuando haya conexión)');
@@ -192,6 +200,9 @@ export default function Movements() {
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Tipo</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Cantidad</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Usuario</th>
+                {user?.role === 'superadmin' && (
+                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Sucursal</th>
+                )}
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Motivo</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Fecha</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Estado</th>
@@ -208,6 +219,11 @@ export default function Movements() {
                   </td>
                   <td className="px-6 py-4 text-slate-600">{mov.quantity}</td>
                   <td className="px-6 py-4 text-slate-600">{mov.username}</td>
+                  {user?.role === 'superadmin' && (
+                    <td className="px-6 py-4 text-slate-600 text-sm font-medium">
+                      {mov.branch_name || '-'}
+                    </td>
+                  )}
                   <td className="px-6 py-4 text-slate-600 text-sm">{mov.reason || '-'}</td>
                   <td className="px-6 py-4 text-slate-600 text-sm">
                     {format(new Date(mov.created_at), 'dd MMM yyyy HH:mm', { locale: es })}
