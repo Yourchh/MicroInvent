@@ -205,7 +205,24 @@ export default function Reports() {
       headStyles: { fillColor: [16, 185, 129] }
     });
 
-    // Sección 2: Stock Crítico
+    // Seccion 2: Stock Real
+    doc.addPage();
+    addHeader(doc, "2. Stock Real de Inventario");
+    autoTable(doc, {
+      startY: 30,
+      head: [['SKU', 'Producto', 'Precio Unit.', 'Stock Actual', 'Estado']],
+      body: stockData?.map(item => [
+        item.sku,
+        item.product_name,
+        `$${item.price}`,
+        item.quantity,
+        item.quantity <= 5 ? 'BAJO' : 'OK'
+      ]),
+      theme: 'grid',
+      headStyles: { fillColor: [59, 130, 246] }
+    }); 
+
+    // Sección 3: Stock Crítico
     const criticalStock = (stockData || []).filter(i => i.quantity <= 5);
     if (criticalStock.length > 0) {
         doc.addPage();
@@ -225,7 +242,7 @@ export default function Reports() {
         });
     }
 
-    // Sección 3: Auditoría (Últimos Movimientos)
+    // Sección 4: Auditoría (Últimos Movimientos)
     doc.addPage();
     addHeader(doc, "3. Últimos Movimientos (Auditoría)");
     autoTable(doc, {
@@ -242,7 +259,7 @@ export default function Reports() {
       headStyles: { fillColor: [100, 116, 139] }
     });
 
-    // Sección 4: Transferencias (si las hay)
+    // Sección 5: Transferencias (si las hay)
     if ((transfersData || []).length > 0) {
       doc.addPage();
       addHeader(doc, "4. Historial de Transferencias");
