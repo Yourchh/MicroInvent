@@ -173,20 +173,51 @@ const Transfer = {
     return rows[0];
   },
 
-  // Aprobar transferencia (solo en sucursal destino)
-  approve: async (transferId, client = null) => {
-    const useClient = client || pool;
-    const query = `
-      UPDATE transfers
-      SET status = 'IN_TRANSIT'
-      WHERE id = $1 AND status = 'PENDING'
-      RETURNING *
-    `;
-    const { rows } = await useClient.query(query, [transferId]);
-    return rows[0];
+  // Aprobar transferencia (descontar stock de origen)
+  approve: async (transferId) => {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // Obtener transferencia
+      const transfer = await Transfer.findById(transferId);
+      if (!transfer) throw new Error('Transferencia no encontrada');
+      if (transfer.status !== 'PENDING') throw new Error('Transferencia no está pendiente');
+
+      // Descontar stock de la sucursal origen
+      for (const item of transfer.items) {
+        const result = await client.query(`
+          UPDATE inventory 
+          SET quantity = quantity - $1, version = version + 1
+          WHERE branch_id = $2 AND product_id = $3 AND quantity >= $1
+          RETURNING *
+        `, [item.quantity, transfer.source_branch_id, item.product_id]);
+
+        if (result.rowCount === 0) {
+          throw new Error(`Stock insuficiente para producto ${item.product_name}`);
+        }
+      }
+
+      // Actualizar estado a IN_TRANSIT
+      const updateQuery = `
+        UPDATE transfers
+        SET status = 'IN_TRANSIT'
+        WHERE id = $1 AND status = 'PENDING'
+        RETURNING *
+      `;
+      const { rows } = await client.query(updateQuery, [transferId]);
+
+      await client.query('COMMIT');
+      return rows[0];
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
   },
 
-  // Completar transferencia (movimiento real del stock)
+  // Completar transferencia (agregar stock a destino)
   complete: async (transferId) => {
     const client = await pool.connect();
     try {
@@ -197,25 +228,17 @@ const Transfer = {
       if (!transfer) throw new Error('Transferencia no encontrada');
       if (transfer.status !== 'IN_TRANSIT') throw new Error('Transferencia no está en tránsito');
 
-      // Por cada item, descontar de origen y agregar a destino
+      // Agregar stock a la sucursal destino
       for (const item of transfer.items) {
-        // Descontar de origen
         await client.query(`
-          UPDATE inventory 
-          SET quantity = quantity - $1
-          WHERE branch_id = $2 AND product_id = $3 AND quantity >= $1
-        `, [item.quantity, transfer.source_branch_id, item.product_id]);
-
-        // Agregar a destino
-        await client.query(`
-          INSERT INTO inventory (branch_id, product_id, quantity)
-          VALUES ($1, $2, $3)
+          INSERT INTO inventory (branch_id, product_id, quantity, min_stock, max_stock, version)
+          VALUES ($1, $2, $3, 0, NULL, 1)
           ON CONFLICT (branch_id, product_id) DO UPDATE
-          SET quantity = inventory.quantity + $3
+          SET quantity = inventory.quantity + $3, version = inventory.version + 1
         `, [transfer.dest_branch_id, item.product_id, item.quantity]);
       }
 
-      // Actualizar estado
+      // Actualizar estado a COMPLETED
       const updateQuery = `
         UPDATE transfers
         SET status = 'COMPLETED'

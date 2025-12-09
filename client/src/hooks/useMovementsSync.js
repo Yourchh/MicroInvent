@@ -48,28 +48,44 @@ export function useMovementsSync(branchId) {
       if (!isOnline) return null;
 
       try {
+        console.log('☁️ Sincronizando movimientos con la nube...');
         const response = await api.get('/movements');
         const movements = response.data?.movements || [];
 
-        // Guardar en IndexedDB
-        if (db.movements) {
+        // Sincronización No Destructiva
+        await db.transaction('rw', db.movements, async () => {
+          // 1. Obtener IDs numéricos (ya sincronizados)
+          const allMovements = await db.movements.toArray();
+          const syncedIdsToDelete = allMovements
+            .filter(m => typeof m.id === 'number')
+            .map(m => m.id);
+          
+          // 2. Eliminar solo registros sincronizados (preserva temporales)
+          if (syncedIdsToDelete.length > 0) {
+            await db.movements.bulkDelete(syncedIdsToDelete);
+          }
+
+          // 3. Insertar registros frescos del servidor
           await db.movements.bulkPut(
             movements.map(m => ({
               ...m,
-              branch_id: branchId,
-              _synced: true
+              branch_id: Number(branchId),
+              temp: false
             }))
           );
-        }
+        });
 
+        console.log('✅ Lista de movimientos local actualizada');
         return movements;
       } catch (error) {
         console.error('Error sincronizando movimientos:', error);
         return null;
       }
     },
-    staleTime: 1000 * 60 * 5, // 5 minutos
     enabled: isOnline,
+    refetchOnWindowFocus: true,
+    staleTime: 1000 * 60,
+    retry: 1,
   });
 
   return {

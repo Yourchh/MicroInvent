@@ -4,9 +4,18 @@ const Movement = {
   // Crear movimiento de inventario
   create: async (branchId, productId, userId, type, quantity, reason = null) => {
     const query = `
-      INSERT INTO movements (branch_id, product_id, user_id, type, quantity, reason)
-      VALUES ($1, $2, $3, $4, $5, $6)
-      RETURNING *
+      WITH inserted AS (
+        INSERT INTO movements (branch_id, product_id, user_id, type, quantity, reason)
+        VALUES ($1, $2, $3, $4, $5, $6)
+        RETURNING *
+      )
+      SELECT 
+        i.*,
+        p.name as product_name,
+        u.username
+      FROM inserted i
+      JOIN products p ON i.product_id = p.id
+      JOIN users u ON i.user_id = u.id
     `;
     const { rows } = await pool.query(query, [branchId, productId, userId, type, quantity, reason]);
     return rows[0];

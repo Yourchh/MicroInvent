@@ -134,12 +134,23 @@ exports.approveTransfer = async (req, res) => {
       return res.status(400).json({ message: 'La transferencia no puede ser aprobada en este estado' });
     }
 
+    // Validar que la sucursal origen tiene stock suficiente para TODOS los productos
+    for (const item of transfer.items) {
+      const inventory = await InventoryModel.findById(transfer.source_branch_id, item.product_id);
+      if (!inventory || inventory.quantity < item.quantity) {
+        return res.status(400).json({ 
+          message: `Stock insuficiente en sucursal origen. Producto: ${item.product_name}, Disponible: ${inventory?.quantity || 0}, Solicitado: ${item.quantity}` 
+        });
+      }
+    }
+
+    // Aprobar y descontar stock de la sucursal origen
     const approved = await Transfer.approve(id);
 
-    console.log(`✅ Transferencia ${id} aprobada. Movimiento en tránsito`);
+    console.log(`✅ Transferencia ${id} aprobada y stock descontado de sucursal origen`);
 
     res.json({
-      message: 'Transferencia aprobada',
+      message: 'Transferencia aprobada y stock reservado',
       transfer: approved
     });
   } catch (err) {

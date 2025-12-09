@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { Plus, Trash2, FileText, Filter, Clock, CheckCircle2, Wifi, WifiOff } from 'lucide-react';
@@ -7,6 +7,8 @@ import { Button } from '../components/ui/Button';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useMovementsSync } from '../hooks/useMovementsSync';
+import { useLiveQuery } from 'dexie-react-hooks';
+import { db } from '../db';
 import { addToQueue } from '../services/syncQueue';
 
 export default function Movements() {
@@ -21,42 +23,64 @@ export default function Movements() {
     reason: ''
   });
 
-  // Usar el hook de sincronización
-  const { isOnline, isSyncing } = useMovementsSync(user?.branch_id);
+  // Usar el hook de sincronización (offline-first)
+  const { movements, isOnline, isSyncing } = useMovementsSync(user?.branch_id);
 
-  // Cargar productos
-  const { data: products = [] } = useQuery({
-    queryKey: ['products', user?.branch_id],
-    queryFn: async () => {
-      const response = await api.get(`/products?branch_id=${user?.branch_id}`);
-      return response.data;
-    }
-  });
+  // Cargar productos desde inventory local
+  const products = useLiveQuery(
+    () => db.inventory.where('branch_id').equals(Number(user?.branch_id)).toArray(),
+    [user?.branch_id]
+  ) || [];
 
-  // Cargar movimientos
-  const { data: movementsData = {}, isLoading } = useQuery({
-    queryKey: ['movements', user?.branch_id, filterType],
-    queryFn: async () => {
-      if (filterType) {
-        const response = await api.get(`/movements/type/${filterType}`);
-        return response.data;
-      }
-      const response = await api.get('/movements');
-      return response.data;
-    }
-  });
+  // Filtrar movimientos según el tipo seleccionado
+  const filteredMovements = filterType 
+    ? movements.filter(m => m.type === filterType)
+    : movements;
 
   // Mutación para crear movimiento
   const createMutation = useMutation({
     mutationFn: async (data) => {
-      return await api.post('/movements', data);
+      if (isOnline) {
+        // Online: enviar directamente
+        const response = await api.post('/movements', data);
+        
+        // Guardar en IndexedDB
+        const movement = response.data;
+        await db.movements.put({
+          ...movement,
+          branch_id: user?.branch_id,
+          temp: false
+        });
+        
+        return response;
+      } else {
+        // Offline: crear registro temporal y encolar
+        const tempId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const product = products.find(p => p.product_id === data.product_id);
+        
+        const tempMovement = {
+          id: tempId,
+          ...data,
+          branch_id: user?.branch_id,
+          user_id: user?.id,
+          username: user?.username,
+          product_name: product?.product_name || 'Desconocido',
+          created_at: new Date().toISOString(),
+          temp: true
+        };
+        
+        await db.movements.put(tempMovement);
+        await addToQueue('CREATE_MOVEMENT', data, tempId);
+        
+        return { data: tempMovement };
+      }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['movements'] });
+      queryClient.invalidateQueries({ queryKey: ['syncMovements'] });
       queryClient.invalidateQueries({ queryKey: ['syncInventory'] });
       setShowModal(false);
       setFormData({ product_id: '', type: 'IN', quantity: '', reason: '' });
-      alert('✅ Movimiento registrado exitosamente');
+      alert(isOnline ? '✅ Movimiento registrado exitosamente' : '✅ Movimiento guardado (se sincronizará cuando haya conexión)');
     },
     onError: (err) => {
       const errorMsg = err.response?.data?.message || err.message;
@@ -101,9 +125,9 @@ export default function Movements() {
   };
 
   const getSyncStatus = (movement) => {
-    const isTemp = typeof movement.id === 'string' && movement.id.startsWith('temp_');
+    const isTemp = movement.temp || (typeof movement.id === 'string' && movement.id.startsWith('temp_'));
     
-    if (isSyncing || isTemp) {
+    if (isTemp) {
       return (
         <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-orange-100 text-orange-700 text-xs font-bold border border-orange-200">
           <Clock size={12} /> Pendiente
@@ -155,8 +179,10 @@ export default function Movements() {
       </div>
 
       {/* Tabla */}
-      {isLoading ? (
-        <div className="p-8 text-center">Cargando movimientos...</div>
+      {isSyncing && movements.length === 0 ? (
+        <div className="p-8 text-center text-slate-500">Cargando movimientos...</div>
+      ) : filteredMovements.length === 0 ? (
+        <div className="p-8 text-center text-slate-400">No hay movimientos registrados</div>
       ) : (
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
           <table className="w-full text-left">
@@ -172,7 +198,7 @@ export default function Movements() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {movementsData.movements?.map((mov) => (
+              {filteredMovements.map((mov) => (
                 <tr key={mov.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-6 py-4 font-medium text-slate-800">{mov.product_name}</td>
                   <td className="px-6 py-4">
@@ -219,7 +245,7 @@ export default function Movements() {
                 >
                   <option value="">Selecciona un producto</option>
                   {products.map(p => (
-                    <option key={p.id} value={p.id}>{p.name} ({p.sku})</option>
+                    <option key={p.product_id} value={p.product_id}>{p.product_name} ({p.sku})</option>
                   ))}
                 </select>
               </div>

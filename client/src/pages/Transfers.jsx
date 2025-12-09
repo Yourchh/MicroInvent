@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
-import { Plus, Check, X, ArrowRight, TrendingUp, Clock, CheckCircle2, Wifi, WifiOff } from 'lucide-react';
+import { Plus, Check, X, ArrowRight, TrendingUp, Clock, CheckCircle2, Wifi, WifiOff, Package, FileText } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -14,6 +14,7 @@ export default function Transfers() {
   const [showModal, setShowModal] = useState(false);
   const [filterStatus, setFilterStatus] = useState('');
   const [filterDirection, setFilterDirection] = useState(''); // sent, received
+  const [expandedTransfer, setExpandedTransfer] = useState(null); // Para detalles expandidos
   const [formData, setFormData] = useState({
     transfer_type: 'REQUEST', // REQUEST o SEND
     dest_branch_id: '',
@@ -21,7 +22,7 @@ export default function Transfers() {
   });
 
   // Usar el hook de sincronización
-  const { isOnline, isSyncing } = useTransfersSync(user?.branch_id);
+  const { isOnline } = useTransfersSync(user?.branch_id);
 
   // Cargar sucursales
   const { data: branches = [] } = useQuery({
@@ -178,21 +179,27 @@ export default function Transfers() {
     return labels[status] || status;
   };
 
-  const getSyncStatus = (transfer) => {
-    const isTemp = typeof transfer.id === 'string' && transfer.id.startsWith('temp_');
-    
-    if (isSyncing || isTemp) {
+  const getTransferTypeLabel = (type) => {
+    return type === 'REQUEST' ? 'Solicitud de Stock' : 'Envío de Stock';
+  };
+
+  const getTransferTypeBadge = (type) => {
+    if (type === 'REQUEST') {
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-orange-100 text-orange-700 text-xs font-bold border border-orange-200">
-          <Clock size={12} /> Pendiente
+        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-blue-100 text-blue-700 text-xs font-medium">
+          📥 Solicitud
         </span>
       );
     }
     return (
-      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-green-100 text-green-700 text-xs font-bold border border-green-200">
-        <CheckCircle2 size={12} /> Sincronizado
+      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-purple-100 text-purple-700 text-xs font-medium">
+        📤 Envío
       </span>
     );
+  };
+
+  const getTotalQuantity = (items) => {
+    return items?.reduce((sum, item) => sum + (item.quantity || 0), 0) || 0;
   };
 
   const canApprove = (transfer) => {
@@ -266,76 +273,152 @@ export default function Transfers() {
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">ID</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Tipo</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Origen → Destino</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Productos</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Productos (Cant.)</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Estado</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Solicitante</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Fecha</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Sincronización</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {transfersData.transfers?.map((transfer) => (
-                <tr key={transfer.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-6 py-4 font-mono text-sm text-slate-600">#{transfer.id}</td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-2 text-sm">
-                      <span className="font-medium">{transfer.source_branch}</span>
-                      <ArrowRight size={16} className="text-slate-400" />
-                      <span className="font-medium">{transfer.dest_branch}</span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-slate-600">
-                    {transfer.items?.length || 0} producto(s)
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(transfer.status)}`}>
-                      {getStatusLabel(transfer.status)}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-slate-600">{transfer.requester_username}</td>
-                  <td className="px-6 py-4 text-sm text-slate-600">
-                    {format(new Date(transfer.created_at), 'dd MMM yyyy HH:mm', { locale: es })}
-                  </td>
-                  <td className="px-6 py-4">
-                    {getSyncStatus(transfer)}
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex gap-2">
-                      {canApprove(transfer) && (
-                        <button
-                          onClick={() => approveMutation.mutate(transfer.id)}
-                          disabled={approveMutation.isPending}
-                          className="p-1 hover:bg-green-100 text-green-600 rounded transition-colors"
-                          title="Aprobar"
-                        >
-                          <Check size={16} />
-                        </button>
-                      )}
-                      {canComplete(transfer) && (
-                        <button
-                          onClick={() => completeMutation.mutate(transfer.id)}
-                          disabled={completeMutation.isPending}
-                          className="p-1 hover:bg-blue-100 text-blue-600 rounded transition-colors"
-                          title="Completar recepción"
-                        >
-                          <Check size={16} />
-                        </button>
-                      )}
-                      {canCancel(transfer) && (
-                        <button
-                          onClick={() => cancelMutation.mutate(transfer.id)}
-                          disabled={cancelMutation.isPending}
-                          className="p-1 hover:bg-red-100 text-red-600 rounded transition-colors"
-                          title="Cancelar"
-                        >
-                          <X size={16} />
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
+                <>
+                  <tr key={transfer.id} className="hover:bg-slate-50 transition-colors cursor-pointer" onClick={() => setExpandedTransfer(expandedTransfer === transfer.id ? null : transfer.id)}>
+                    <td className="px-6 py-4 font-mono text-sm font-bold text-primary">#{transfer.id}</td>
+                    <td className="px-6 py-4">
+                      {getTransferTypeBadge(transfer.transfer_type)}
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-2 text-sm">
+                        <div className="flex flex-col">
+                          <span className="font-medium text-slate-800">{transfer.source_branch}</span>
+                          {transfer.transfer_type === 'REQUEST' && (
+                            <span className="text-xs text-slate-500">Envía stock</span>
+                          )}
+                        </div>
+                        <ArrowRight size={16} className="text-slate-400" />
+                        <div className="flex flex-col">
+                          <span className="font-medium text-slate-800">{transfer.dest_branch}</span>
+                          {transfer.transfer_type === 'REQUEST' && (
+                            <span className="text-xs text-slate-500">Recibe stock</span>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-2">
+                        <Package size={16} className="text-slate-400" />
+                        <div className="flex flex-col">
+                          <span className="text-sm font-medium text-slate-800">{transfer.items?.length || 0} producto(s)</span>
+                          <span className="text-xs text-slate-500">{getTotalQuantity(transfer.items)} unidades totales</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(transfer.status)}`}>
+                        {getStatusLabel(transfer.status)}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex flex-col">
+                        <span className="text-sm font-medium text-slate-800">{transfer.requester_username}</span>
+                        <span className="text-xs text-slate-500">
+                          {transfer.transfer_type === 'REQUEST' ? 'Solicitó' : 'Ofreció enviar'}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-slate-600">
+                      {format(new Date(transfer.created_at), 'dd MMM yyyy HH:mm', { locale: es })}
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex gap-2">
+                        {canApprove(transfer) && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); approveMutation.mutate(transfer.id); }}
+                            disabled={approveMutation.isPending}
+                            className="px-3 py-1 bg-green-100 hover:bg-green-200 text-green-700 rounded text-xs font-medium transition-colors"
+                            title="Aprobar transferencia"
+                          >
+                            <Check size={14} className="inline mr-1" /> Aprobar
+                          </button>
+                        )}
+                        {canComplete(transfer) && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); completeMutation.mutate(transfer.id); }}
+                            disabled={completeMutation.isPending}
+                            className="px-3 py-1 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded text-xs font-medium transition-colors"
+                            title="Completar recepción"
+                          >
+                            <Check size={14} className="inline mr-1" /> Recibido
+                          </button>
+                        )}
+                        {canCancel(transfer) && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); cancelMutation.mutate(transfer.id); }}
+                            disabled={cancelMutation.isPending}
+                            className="px-3 py-1 bg-red-100 hover:bg-red-200 text-red-700 rounded text-xs font-medium transition-colors"
+                            title="Cancelar transferencia"
+                          >
+                            <X size={14} className="inline mr-1" /> Cancelar
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                  {expandedTransfer === transfer.id && (
+                    <tr className="bg-slate-50">
+                      <td colSpan="8" className="px-6 py-4">
+                        <div className="space-y-3">
+                          <div className="flex items-center gap-2 text-sm font-bold text-slate-700 mb-3">
+                            <FileText size={16} />
+                            Detalles de la Transferencia #{transfer.id}
+                          </div>
+                          <div className="grid grid-cols-2 gap-4 mb-4">
+                            <div className="bg-white p-3 rounded-lg border border-slate-200">
+                              <div className="text-xs text-slate-500 mb-1">Tipo de Transferencia</div>
+                              <div className="text-sm font-medium">{getTransferTypeLabel(transfer.transfer_type)}</div>
+                            </div>
+                            <div className="bg-white p-3 rounded-lg border border-slate-200">
+                              <div className="text-xs text-slate-500 mb-1">Estado Actual</div>
+                              <div className="text-sm font-medium">{getStatusLabel(transfer.status)}</div>
+                            </div>
+                          </div>
+                          <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
+                            <div className="bg-slate-100 px-4 py-2 border-b border-slate-200">
+                              <span className="text-xs font-bold text-slate-700">PRODUCTOS EN ESTA TRANSFERENCIA</span>
+                            </div>
+                            <table className="w-full">
+                              <thead className="bg-slate-50">
+                                <tr>
+                                  <th className="px-4 py-2 text-left text-xs font-medium text-slate-500">SKU</th>
+                                  <th className="px-4 py-2 text-left text-xs font-medium text-slate-500">Producto</th>
+                                  <th className="px-4 py-2 text-right text-xs font-medium text-slate-500">Cantidad</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100">
+                                {transfer.items?.map((item, idx) => (
+                                  <tr key={idx} className="hover:bg-slate-50">
+                                    <td className="px-4 py-2 text-sm font-mono text-slate-600">{item.sku}</td>
+                                    <td className="px-4 py-2 text-sm font-medium text-slate-800">{item.product_name}</td>
+                                    <td className="px-4 py-2 text-sm font-bold text-right text-slate-800">{item.quantity} unidades</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                              <tfoot className="bg-slate-50 border-t-2 border-slate-300">
+                                <tr>
+                                  <td colSpan="2" className="px-4 py-2 text-sm font-bold text-slate-700">TOTAL</td>
+                                  <td className="px-4 py-2 text-sm font-bold text-right text-primary">{getTotalQuantity(transfer.items)} unidades</td>
+                                </tr>
+                              </tfoot>
+                            </table>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </>
               ))}
             </tbody>
           </table>
