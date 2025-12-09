@@ -67,8 +67,9 @@ export default function Inventory() {
   // --- HELPERS ---
   const handleSuccess = async (msg) => {
     closeModal();
-    // Invalidar en background sin esperar (no bloquea el cierre del modal)
-    queryClient.invalidateQueries({ queryKey: ['syncInventory'] }).catch(console.error);
+    // Invalidar usando la clave con branchId para refrescar los datos correctos
+    queryClient.invalidateQueries({ queryKey: ['syncInventory', selectedBranchId] }).catch(console.error);
+    queryClient.refetchQueries({ queryKey: ['syncInventory', selectedBranchId] }).catch(console.error);
     if (isOnline) { 
         alert(msg);
     }
@@ -411,7 +412,7 @@ export default function Inventory() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Precio</label>
                   <input 
@@ -422,18 +423,6 @@ export default function Inventory() {
                     placeholder="0.00"
                   />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Stock Mínimo</label>
-                  <input 
-                    type="number" required 
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary/20 outline-none"
-                    value={formData.min_stock}
-                    onChange={e => setFormData({...formData, min_stock: Number(e.target.value), min_stock_alert: Number(e.target.value)})}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Stock Actual</label>
                   <input 
@@ -452,6 +441,18 @@ export default function Inventory() {
                     value={formData.max_stock}
                     onChange={e => setFormData({...formData, max_stock: e.target.value === '' ? '' : Number(e.target.value)})}
                     placeholder="Opcional"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Stock Mínimo</label>
+                  <input 
+                    type="number" min="0" required 
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary/20 outline-none"
+                    value={formData.min_stock}
+                    onChange={e => setFormData({...formData, min_stock: Number(e.target.value), min_stock_alert: Number(e.target.value)})}
                   />
                 </div>
               </div>
