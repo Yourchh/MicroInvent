@@ -4,6 +4,9 @@ import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { Users as UsersIcon, Trash2, Pencil, Plus, X, Save, User, Shield, Wifi, WifiOff, Clock, CheckCircle2, Zap } from 'lucide-react';
 import { Button } from '../components/ui/Button';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
+
 import { useUserSync } from '../hooks/useUserSync'; 
 import { db } from '../db'; 
 import { addToQueue } from '../services/syncQueue'; 
@@ -85,31 +88,14 @@ export default function Users() {
   };
 
   const handleSuccess = async (msg) => {
-    // Primero actualizar localmente la IndexedDB si estamos editando
-    if (editingUser && isOnline) {
-      // Refetch desde el servidor para obtener datos frescos
-      try {
-        const response = await api.get('/users');
-        const updatedUser = response.data.find(u => u.id === editingUser.id);
-        if (updatedUser) {
-          await db.users.put(updatedUser);
-          console.log('✅ Usuario actualizado en IndexedDB:', updatedUser);
-        }
-      } catch (err) {
-        console.error('Error refetcheando usuario:', err);
-      }
-    }
-    
     closeModal();
-    
-    // Luego refrescar React Query con delay
-    setTimeout(async () => {
-      await queryClient.invalidateQueries({ queryKey: ['syncUsers'] });
-      await queryClient.refetchQueries({ queryKey: ['syncUsers'] });
+    // Refrescar datos desde el servidor forzadamente  
+    setTimeout(() => {
+      queryClient.refetchQueries({ queryKey: ['syncUsers'], type: 'active' }).catch(console.error);
       if (isOnline) {
         alert(msg);
       }
-    }, 1000);
+    }, 500);
   };
 
   const handleError = (err) => {
@@ -453,9 +439,8 @@ export default function Users() {
                   value={formData.role}
                   onChange={(e) => setFormData({ ...formData, role: e.target.value })}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  disabled={editingUser && !isSuperAdmin && !['employee', 'manager'].includes(editingUser.role)} // Admin solo puede cambiar employee/manager
+                  disabled={editingUser} // No permite cambiar rol
                 >
-                  {/* SuperAdmin ve todos los roles (crear o editar) */}
                   {isSuperAdmin && (
                     <>
                       <option value="superadmin">SuperAdmin</option>

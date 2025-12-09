@@ -4,6 +4,9 @@ import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { Users as UsersIcon, Trash2, Pencil, Plus, X, Save, User, Shield, Wifi, WifiOff, Clock, CheckCircle2, Zap } from 'lucide-react';
 import { Button } from '../components/ui/Button';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
+
 import { useUserSync } from '../hooks/useUserSync'; 
 import { db } from '../db'; 
 import { addToQueue } from '../services/syncQueue'; 
@@ -15,7 +18,6 @@ export default function Users() {
   const [showOfflineAlert, setShowOfflineAlert] = useState(true);
   
   const isSuperAdmin = currentUser?.role === 'superadmin';
-  const isAdmin = currentUser?.role === 'admin';
   
   // Estados del Modal
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -85,31 +87,14 @@ export default function Users() {
   };
 
   const handleSuccess = async (msg) => {
-    // Primero actualizar localmente la IndexedDB si estamos editando
-    if (editingUser && isOnline) {
-      // Refetch desde el servidor para obtener datos frescos
-      try {
-        const response = await api.get('/users');
-        const updatedUser = response.data.find(u => u.id === editingUser.id);
-        if (updatedUser) {
-          await db.users.put(updatedUser);
-          console.log('✅ Usuario actualizado en IndexedDB:', updatedUser);
-        }
-      } catch (err) {
-        console.error('Error refetcheando usuario:', err);
-      }
-    }
-    
     closeModal();
-    
-    // Luego refrescar React Query con delay
-    setTimeout(async () => {
-      await queryClient.invalidateQueries({ queryKey: ['syncUsers'] });
-      await queryClient.refetchQueries({ queryKey: ['syncUsers'] });
+    // Refrescar datos desde el servidor forzadamente  
+    setTimeout(() => {
+      queryClient.refetchQueries({ queryKey: ['syncUsers'], type: 'active' }).catch(console.error);
       if (isOnline) {
         alert(msg);
       }
-    }, 1000);
+    }, 500);
   };
 
   const handleError = (err) => {
@@ -228,14 +213,7 @@ export default function Users() {
   // Funciones del Modal
   const openCreate = () => {
     setEditingUser(null);
-    // Si es admin, asignar automáticamente su sucursal. Si es superadmin, sucursal es null (no aplica)
-    const initialBranchId = isAdmin ? currentUser.branch_id : 1;
-    setFormData({ 
-      username: '', 
-      password: '', 
-      role: 'employee', 
-      branch_id: initialBranchId 
-    });
+    setFormData({ username: '', password: '', role: 'employee', branch_id: 1 });
     setIsModalOpen(true);
   };
 
@@ -258,33 +236,18 @@ export default function Users() {
   const handleSubmit = (e) => {
     e.preventDefault();
     
-    // Para crear: validar según rol del usuario actual
-    if (!editingUser) {
-      // Creando nuevo usuario
-      if (isAdmin) {
-        // Admin: rol debe ser employee o manager, sucursal debe ser la suya
-        if (!['employee', 'manager'].includes(formData.role)) {
-          setErrorMsg('Como admin, solo puedes crear empleados y gerentes');
-          return;
-        }
-        if (formData.branch_id !== currentUser.branch_id) {
-          setErrorMsg('La sucursal debe ser la tuya asignada');
-          return;
-        }
-      } else if (isSuperAdmin) {
-        // SuperAdmin: validar que admin y employee tengan sucursal, superadmin no tenga
-        if (formData.role === 'superadmin' && formData.branch_id) {
-          setErrorMsg('Los superadmins no deben tener sucursal asignada');
-          return;
-        }
-        if ((formData.role === 'admin' || formData.role === 'employee' || formData.role === 'manager') && !formData.branch_id) {
-          setErrorMsg(`Los ${formData.role}s deben tener una sucursal asignada`);
-          return;
-        }
-      }
+    // Validar que se seleccionó una sucursal (excepto para superadmin)
+    if (formData.role !== 'superadmin' && !formData.branch_id) {
+      setErrorMsg('Debe seleccionar una sucursal');
+      return;
     }
     
-    saveMutation.mutate(formData);
+    // Si es superadmin, asegurarse de que no tenga branch_id
+    const dataToSubmit = formData.role === 'superadmin' 
+      ? { ...formData, branch_id: null }
+      : formData;
+    
+    saveMutation.mutate(dataToSubmit);
   };
 
   if (isSyncing && !users?.length) return <div className="p-8">Cargando...</div>;
@@ -453,9 +416,8 @@ export default function Users() {
                   value={formData.role}
                   onChange={(e) => setFormData({ ...formData, role: e.target.value })}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  disabled={editingUser && !isSuperAdmin && !['employee', 'manager'].includes(editingUser.role)} // Admin solo puede cambiar employee/manager
+                  disabled={editingUser} // No permite cambiar rol
                 >
-                  {/* SuperAdmin ve todos los roles (crear o editar) */}
                   {isSuperAdmin && (
                     <>
                       <option value="superadmin">SuperAdmin</option>
@@ -467,15 +429,14 @@ export default function Users() {
                 </select>
               </div>
 
-              {/* Solo mostrar selector de sucursal si es SUPERADMIN editando, o si es SUPERADMIN creando (no admin creando) */}
-              {(isSuperAdmin && !editingUser) || (editingUser && !isAdmin) ? (
+              {formData.role !== 'superadmin' && (
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Sucursal</label>
                   <select
-                    value={formData.branch_id || ''}
-                    onChange={(e) => setFormData({ ...formData, branch_id: e.target.value ? parseInt(e.target.value) : null })}
+                    value={formData.branch_id}
+                    onChange={(e) => setFormData({ ...formData, branch_id: parseInt(e.target.value) })}
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    disabled={editingUser && isAdmin} // Admin no puede cambiar sucursal
+                    disabled={editingUser && currentUser.role === 'admin'} // Admin no puede cambiar sucursal
                   >
                     <option value="">Seleccionar sucursal</option>
                     {branches.map((b) => (
@@ -485,15 +446,7 @@ export default function Users() {
                     ))}
                   </select>
                 </div>
-              ) : isAdmin && !editingUser ? (
-                // Para admin creando: mostrar su sucursal como texto (no selector)
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Sucursal Asignada</label>
-                  <div className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-slate-50 text-slate-700 font-medium">
-                    {getBranchName(currentUser.branch_id)}
-                  </div>
-                </div>
-              ) : null}
+              )}
 
               <div className="flex gap-3 pt-4">
                 <button

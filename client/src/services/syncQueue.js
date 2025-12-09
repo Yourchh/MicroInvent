@@ -40,6 +40,14 @@ const replaceUserTempId = async (action, serverUser) => {
   await db.users.put({ ...serverUser, temp: false });
 };
 
+const replaceMovementTempId = async (action, serverMovement) => {
+  if (action.tempId) {
+    await db.movements.where('id').equals(action.tempId).delete();
+  }
+  // Aseguramos que el registro local tenga el ID definitivo y quite la marca temp
+  await db.movements.put({ ...serverMovement, temp: false });
+};
+
 // La función debe recibir queryClient para invalidar correctamente
 export const processQueue = async (queryClient) => {
   if (!navigator.onLine) return;
@@ -146,6 +154,24 @@ export const processQueue = async (queryClient) => {
         else if (action.type === 'DELETE_USER') {
           await api.delete(`/users/${action.payload.id}`);
           invalidate(queryClient, 'syncUsers');
+        }
+
+        else if (action.type === 'CREATE_MOVEMENT') {
+          const { data } = await api.post('/movements', action.payload);
+          const serverMovement = data.movement || data;
+          await replaceMovementTempId(action, serverMovement);
+          invalidate(queryClient, 'syncMovements');
+        }
+
+        else if (action.type === 'UPDATE_MOVEMENT') {
+          await api.put(`/movements/${action.payload.id}`, action.payload);
+          await db.movements.update(action.payload.id, { ...action.payload, temp: false });
+          invalidate(queryClient, 'syncMovements');
+        }
+
+        else if (action.type === 'DELETE_MOVEMENT') {
+          await api.delete(`/movements/${action.payload.id}`);
+          invalidate(queryClient, 'syncMovements');
         }
 
         await db.mutations.delete(action.id);

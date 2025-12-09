@@ -70,8 +70,19 @@ export const AuthProvider = ({ children }) => {
     setUser(userData);
   };
 
+  // Función para cambiar la sucursal actual (solo para superadmin)
+  const changeBranch = (branchId, branchName) => {
+    const updatedUser = {
+      ...user,
+      branch_id: branchId,
+      branch_name: branchName
+    };
+    setUser(updatedUser);
+    localStorage.setItem('user', JSON.stringify(updatedUser));
+  };
+
   return (
-    <AuthContext.Provider value={{ user, login, logout, loading, updateUser }}>
+    <AuthContext.Provider value={{ user, login, logout, loading, updateUser, changeBranch }}>
       {children}
     </AuthContext.Provider>
   );

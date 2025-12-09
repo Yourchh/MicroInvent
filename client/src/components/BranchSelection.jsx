@@ -7,23 +7,38 @@ export default function BranchSelection({ tempToken, userData, onBranchSelected 
   const [selectedBranch, setSelectedBranch] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
 
-  // Determinar si es superadmin o admin
+  // Determinar si es superadmin o admin/manager
   const isSuperAdmin = userData?.role === 'superadmin';
+  const isAdminOrManager = ['admin', 'manager'].includes(userData?.role);
   const assignedBranchId = userData?.assigned_branch_id;
 
   // Cargar sucursales públicamente
-  const { data: allBranches = [], isLoading } = useQuery({
+  const { data: allBranches = [], isLoading, error: branchesError } = useQuery({
     queryKey: ['branches-public'],
     queryFn: async () => {
-      const response = await api.get('/branches/public');
+      console.log('📍 Cargando sucursales...');
+      const response = await api.get('/branches');
+      console.log('✅ Sucursales cargadas:', response.data);
       return Array.isArray(response.data) ? response.data : [];
     },
+    retry: 3,
+    retryDelay: 1000,
   });
+
+  // Mostrar error si hay
+  if (branchesError) {
+    console.error('❌ Error al cargar sucursales:', branchesError);
+  }
 
   // Filtrar sucursales según el rol
   const branches = isSuperAdmin 
     ? allBranches 
-    : allBranches.filter(b => b.id === assignedBranchId);
+    : isAdminOrManager
+      ? allBranches.filter(b => b.id === assignedBranchId)
+      : [];
+
+  // Mensaje según el rol
+  const roleLabel = userData?.role === 'manager' ? 'gerente' : userData?.role === 'admin' ? 'administrador' : 'usuario';
 
   // Mutación para seleccionar sucursal
   const selectMutation = useMutation({
@@ -92,12 +107,12 @@ export default function BranchSelection({ tempToken, userData, onBranchSelected 
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {errorMsg && (
+          {(errorMsg || branchesError) && (
             <div className="bg-red-50 text-red-700 p-4 rounded-lg border-2 border-red-200 flex items-start gap-3 animate-pulse">
               <AlertCircle size={20} className="flex-shrink-0 mt-0.5" />
               <div className="flex-1">
                 <p className="font-semibold text-sm mb-1">Error de Validación</p>
-                <p className="text-sm">{errorMsg}</p>
+                <p className="text-sm">{errorMsg || (branchesError?.message ? `No se pudieron cargar las sucursales: ${branchesError.message}` : 'Error al cargar sucursales')}</p>
               </div>
             </div>
           )}
@@ -106,6 +121,7 @@ export default function BranchSelection({ tempToken, userData, onBranchSelected 
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">
               Sucursal {isSuperAdmin && <span className="text-blue-600 ml-1">(SuperAdmin - Todas)</span>}
+              {isAdminOrManager && <span className="text-blue-600 ml-1">({roleLabel.charAt(0).toUpperCase() + roleLabel.slice(1)} - Asignada)</span>}
             </label>
             <select
               value={selectedBranch}

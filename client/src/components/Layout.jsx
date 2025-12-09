@@ -1,10 +1,12 @@
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { LayoutDashboard, Package, FileText, LogOut, Users } from 'lucide-react';
+import { LayoutDashboard, Package, FileText, LogOut, Users, TrendingUp, ArrowRight, ChevronDown } from 'lucide-react';
 import { Settings as SettingsIcon } from 'lucide-react';
 import OfflineAlert from './OfflineAlert';
 import OfflineBlocker from './OfflineBlocker';
 import { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import api from '../api/axios';
 
 // eslint-disable-next-line no-unused-vars
 const NavItem = ({ to, icon: Icon, label }) => {
@@ -27,8 +29,18 @@ const NavItem = ({ to, icon: Icon, label }) => {
 };
 
 export default function Layout() {
-  const { user, logout } = useAuth();
+  const { user, logout, changeBranch } = useAuth();
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  
+  const { data: branches = [] } = useQuery({
+    queryKey: ['branches'],
+    queryFn: async () => {
+      const response = await api.get('/branches');
+      return response.data;
+    },
+    enabled: user?.role === 'superadmin'
+  });
   
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -47,6 +59,11 @@ export default function Layout() {
   const isAdmin = user?.role === 'admin' || isSuperAdmin;
   const canViewReports = ['admin', 'superadmin', 'manager'].includes(user?.role);
 
+  const handleBranchChange = (branchId, branchName) => {
+    changeBranch(branchId, branchName);
+    setIsDropdownOpen(false);
+  };
+
   return (
     <div className="min-h-screen flex bg-background">
       {/* OfflineBlocker - Cubre toda la pantalla si se va internet */}
@@ -61,9 +78,42 @@ export default function Layout() {
           <span className="text-xl font-bold text-slate-800">MicroInvent</span>
         </div>
 
+        {/* Branch Selector para Superadmin */}
+        {isSuperAdmin && (
+          <div className="mb-6 relative">
+            <button
+              onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+              className="w-full flex items-center justify-between px-3 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-sm font-medium text-slate-700 transition-colors"
+            >
+              <span className="truncate">{user?.branch_name || 'Seleccionar sucursal'}</span>
+              <ChevronDown size={16} className={`transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
+            </button>
+            
+            {isDropdownOpen && (
+              <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-200 rounded-lg shadow-lg z-50">
+                {branches.map((branch) => (
+                  <button
+                    key={branch.id}
+                    onClick={() => handleBranchChange(branch.id, branch.name)}
+                    className={`w-full text-left px-3 py-2 text-sm transition-colors ${
+                      user?.branch_id === branch.id
+                        ? 'bg-primary text-white font-medium'
+                        : 'text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    {branch.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         <nav className="flex-1 space-y-2">
           <NavItem to="/dashboard" icon={LayoutDashboard} label="Dashboard" />
           <NavItem to="/dashboard/inventory" icon={Package} label="Inventario" />
+          <NavItem to="/dashboard/movements" icon={TrendingUp} label="Movimientos" />
+          <NavItem to="/dashboard/transfers" icon={ArrowRight} label="Transferencias" />
           {canViewReports && (<NavItem to="/dashboard/reports" icon={FileText} label="Reportes" />)}
           {isAdmin && (
             <>

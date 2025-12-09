@@ -31,7 +31,9 @@ CREATE TABLE inventory (
     id SERIAL PRIMARY KEY,
     branch_id INT REFERENCES branches(id),
     product_id INT REFERENCES products(id),
-    quantity INT DEFAULT 0 CHECK (quantity >= 0),
+        quantity NUMERIC DEFAULT 0,
+        min_stock NUMERIC DEFAULT 0,
+        max_stock NUMERIC,
     version INT DEFAULT 1, -- Optimistic Locking
     UNIQUE(branch_id, product_id)
 );
@@ -53,6 +55,7 @@ CREATE TABLE transfers (
     source_branch_id INT REFERENCES branches(id),
     dest_branch_id INT REFERENCES branches(id),
     requester_user_id INT REFERENCES users(id),
+    transfer_type VARCHAR(20) DEFAULT 'REQUEST', -- 'REQUEST' o 'SEND'
     status transfer_status DEFAULT 'PENDING',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

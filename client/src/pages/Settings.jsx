@@ -12,6 +12,7 @@ export default function Settings() {
   const [isBranchModalOpen, setIsBranchModalOpen] = useState(false);
   const [confirmText, setConfirmText] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [newBranchName, setNewBranchName] = useState('');
   const [newBranchAddress, setNewBranchAddress] = useState('');
@@ -29,7 +30,7 @@ export default function Settings() {
   }, []);
 
   // Cargar sucursales
-  const { data: branches = [] } = useQuery({
+  const { data: branches = [], refetch: refetchBranches } = useQuery({
     queryKey: ['branches'],
     queryFn: async () => {
       const response = await api.get('/branches');
@@ -69,14 +70,17 @@ export default function Settings() {
       await api.delete(`/branches/${branchId}`);
       return branchId;
     },
-    onSuccess: (branchId) => {
-      queryClient.invalidateQueries({ queryKey: ['branches'] });
+    onSuccess: async (branchId) => {
       const branch = branches.find(b => b.id === branchId);
+      await queryClient.invalidateQueries({ queryKey: ['branches'] });
+      await refetchBranches();
       setSuccessMsg(`Sucursal "${branch?.name}" eliminada correctamente`);
       setTimeout(() => setSuccessMsg(''), 3000);
     },
     onError: (err) => {
-      alert(err.response?.data?.message || 'Error al eliminar la sucursal');
+      const errorMsg = err.response?.data?.message || err.message || 'Error al eliminar la sucursal';
+      setErrorMsg(errorMsg);
+      setTimeout(() => setErrorMsg(''), 5000);
     }
   });
 
@@ -142,12 +146,23 @@ export default function Settings() {
         </p>
       </div>
 
+      {/* Alertas de Éxito y Error - Arriba de todo */}
       {successMsg && (
         <div className="bg-green-50 border border-green-200 text-green-700 p-4 rounded-xl flex items-center gap-3 animate-in fade-in slide-in-from-top-2">
           <CheckCircle size={24} />
           <div>
             <p className="font-bold">¡Éxito!</p>
             <p>{successMsg}</p>
+          </div>
+        </div>
+      )}
+
+      {errorMsg && (
+        <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-xl flex items-center gap-3 animate-in fade-in slide-in-from-top-2">
+          <AlertTriangle size={24} />
+          <div>
+            <p className="font-bold">Error</p>
+            <p>{errorMsg}</p>
           </div>
         </div>
       )}
@@ -217,6 +232,90 @@ export default function Settings() {
           )}
         </div>
       </div>
+
+      {/* Panel de eliminación de datos por módulo (solo superadmin) */}
+      {isSuperAdmin && (
+        <div className="border border-red-200 rounded-xl overflow-hidden bg-white shadow-sm">
+          <div className="bg-red-50 p-4 border-b border-red-100 flex items-center gap-3">
+            <Trash2 className="text-red-600" size={24} />
+            <h3 className="text-lg font-bold text-red-700">Eliminar datos por módulo</h3>
+          </div>
+          
+          <div className="p-6">
+            <p className="text-sm text-red-600 mb-4">Esta acción eliminará datos de los módulos seleccionados. Puedes elegir eliminar en todas las sucursales o solo en una sucursal específica.</p>
+            <form className="flex flex-col gap-3" onSubmit={async e => {
+              e.preventDefault();
+              const modulo = e.target.modulo.value;
+              const branchId = e.target.branch.value;
+              
+              if (!modulo) {
+                alert('Selecciona un módulo');
+                return;
+              }
+              
+              const branchNum = branchId ? Number(branchId) : null;
+              if (!confirm(`¿Seguro que deseas eliminar todos los datos de ${modulo} ${branchNum ? 'en la sucursal seleccionada' : 'en todas las sucursales'}? Esta acción no se puede deshacer.`)) return;
+              
+              try {
+                const { db } = await import('../db');
+                if (modulo === 'inventario') {
+                  if (branchNum) {
+                    await db.inventory.where('branch_id').equals(branchNum).delete();
+                  } else {
+                    await db.inventory.clear();
+                  }
+                } else if (modulo === 'usuarios') {
+                  if (branchNum) {
+                    await db.users.where('branch_id').equals(branchNum).delete();
+                  } else {
+                    await db.users.clear();
+                  }
+                } else if (modulo === 'movimientos') {
+                  if (branchNum) {
+                    await db.movements.where('branch_id').equals(branchNum).delete();
+                  } else {
+                    await db.movements.clear();
+                  }
+                } else if (modulo === 'transferencias') {
+                  if (db.transfers) {
+                    if (branchNum) {
+                      await db.transfers.where('source_branch_id').equals(branchNum).delete();
+                      await db.transfers.where('dest_branch_id').equals(branchNum).delete();
+                    } else {
+                      await db.transfers.clear();
+                    }
+                  }
+                }
+                alert('✅ Datos eliminados correctamente');
+                window.location.reload();
+              } catch (err) {
+                alert('❌ Error eliminando datos: ' + err.message);
+              }
+            }}>
+              <div className="flex gap-2 items-center">
+                <label className="font-medium text-red-700 min-w-fit">Módulo:</label>
+                <select name="modulo" className="px-3 py-2 border border-red-300 rounded-lg bg-white flex-1">
+                  <option value="">Selecciona módulo</option>
+                  <option value="inventario">Inventario</option>
+                  <option value="usuarios">Usuarios</option>
+                  <option value="movimientos">Movimientos</option>
+                  <option value="transferencias">Transferencias</option>
+                </select>
+              </div>
+              <div className="flex gap-2 items-center">
+                <label className="font-medium text-red-700 min-w-fit">Sucursal:</label>
+                <select name="branch" className="px-3 py-2 border border-red-300 rounded-lg bg-white flex-1">
+                  <option value="">Todas las sucursales</option>
+                  {branches.map(b => (
+                    <option key={b.id} value={b.id}>{b.name}</option>
+                  ))}
+                </select>
+              </div>
+              <button type="submit" className="mt-2 bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">Eliminar</button>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Tarjeta de Zona de Peligro - Solo SuperAdmin */}
       {isSuperAdmin && (

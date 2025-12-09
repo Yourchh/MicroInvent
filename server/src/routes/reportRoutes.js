@@ -7,7 +7,6 @@ const { verifyToken, verifyRole } = require('../middlewares/authMiddleware');
 // Solo 'admin' y 'manager' pueden ver reportes
 router.get('/movements/:branchId', 
   verifyToken, 
-  verifyRole('manager'), // OJO: Aquí forzamos que sea admin para probar tu módulo de roles
   reportController.getMovementReport
 );
 

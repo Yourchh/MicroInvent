@@ -10,6 +10,8 @@ import Users from './pages/Users';
 import Dashboard from './pages/Dashboard';
 import Reports from './pages/Reports';
 import Settings from './pages/Settings';
+import Movements from './pages/Movements';
+import Transfers from './pages/Transfers';
 
 const queryClient = new QueryClient();
 
@@ -33,6 +35,8 @@ function AppRoutes() {
         {/* Rutas Hijas */}
         <Route index element={<Dashboard />} /> {/* Dashboard es la vista por defecto */}
         <Route path="inventory" element={<Inventory />} />
+        <Route path="movements" element={<Movements />} />
+        <Route path="transfers" element={<Transfers />} />
         <Route path="reports" element={<Reports />} />
         <Route path="users" element={<Users />} />
         <Route path="settings" element={<Settings />} />

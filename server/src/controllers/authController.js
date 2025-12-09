@@ -73,7 +73,7 @@ exports.login = async (req, res) => {
       });
     }
 
-    // ADMIN/SUPERADMIN: Necesita seleccionar sucursal
+    // ADMIN/MANAGER/SUPERADMIN: Necesita seleccionar sucursal
     if (userType === 'admin') {
       if (user.role === 'employee') {
         return res.status(403).json({ message: 'Este usuario es un empleado. Use login de empleado.' });
@@ -86,7 +86,7 @@ exports.login = async (req, res) => {
         { expiresIn: '30m' }
       );
 
-      console.log(`🔑 Admin/SuperAdmin ${username} requiere seleccionar sucursal`);
+      console.log(`🔑 ${user.role.toUpperCase()} ${username} requiere seleccionar sucursal`);
 
       return res.json({ 
         tempToken, 
@@ -94,7 +94,7 @@ exports.login = async (req, res) => {
           id: user.id, 
           username: user.username, 
           role: user.role,
-          assigned_branch_id: user.branch_id // Para admin, es su sucursal permitida
+          assigned_branch_id: user.branch_id // Para admin/manager, es su sucursal permitida
         },
         requiresBranchSelection: true 
       });
@@ -124,16 +124,16 @@ exports.selectBranch = async (req, res) => {
     }
 
     // Validar permisos según rol
-    if (userRole === 'admin') {
-      // Admin solo puede seleccionar su sucursal asignada
+    if (userRole === 'admin' || userRole === 'manager') {
+      // Admin y Manager solo pueden seleccionar su sucursal asignada
       if (userAssignedBranch !== branch_id) {
         return res.status(403).json({ 
-          message: `Como administrador, solo puedes acceder a tu sucursal asignada.`,
+          message: `Como ${userRole === 'admin' ? 'administrador' : 'gerente'}, solo puedes acceder a tu sucursal asignada.`,
           allowedBranchId: userAssignedBranch
         });
       }
     } else if (userRole !== 'superadmin') {
-      // Solo superadmin y admin pueden usar este endpoint
+      // Solo superadmin, admin y manager pueden usar este endpoint
       return res.status(403).json({ message: 'No tienes permisos para seleccionar sucursal' });
     }
 
