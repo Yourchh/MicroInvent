@@ -138,8 +138,11 @@ El desarrollo se divide por dominios funcionales para mantener la independencia 
 4. **Inicializar la base de datos:**
 
    ```bash
-   docker exec -i microinvent-db-1 psql -U postgres -d microinvent < database/init.sql
-   docker exec -i microinvent-db-1 psql -U postgres -d microinvent < database/migrate_roles.sql
+   docker exec -i microinvent_db psql -U admin -d microinvent < database/init.sql
+   docker exec -i microinvent_db psql -U admin -d microinvent < database/migrate_roles.sql
+
+   #Ejecute este comando para borrar todo el esquema público en caso que necesite iniciar de nuevo
+   docker exec -i microinvent_db psql -U admin -d microinvent -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
    ```
 
 5. **Acceder a la aplicación:**
