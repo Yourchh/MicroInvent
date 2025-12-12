@@ -25,6 +25,12 @@ MicroInvent es una Aplicación Web Progresiva (PWA) diseñada para gestionar inv
 
 El proyecto está diseñado para ser desplegado en **AWS** utilizando servicios gestionados para garantizar escalabilidad y alta disponibilidad.
 
+## Video de Funcionamiento
+
+https://github.com/user-attachments/assets/e806ada8-18e4-41dd-bb1c-fe3fca49c0ee
+
+https://github.com/user-attachments/assets/1a8c56e6-b755-40e9-9494-4a2fc0bfdc45
+
 ---
 
 ## Tecnologias Utilizadas
