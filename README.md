@@ -135,7 +135,26 @@ El desarrollo se divide por dominios funcionales para mantener la independencia 
    - Backend (API) en puerto `3000`
    - Frontend en puerto `5173`
 
-4. **Inicializar la base de datos:**
+4. **Iniciar Servidor y Cliente**
+
+   Iniciar Server
+
+   ```bash
+   cd /microinvent/server/
+   npm install
+   npm run dev
+   ```
+
+   Iniciar Client
+
+   ```bash
+   cd /microinvent/client/
+   npm install
+   npm run dev
+   ```
+
+
+5. **Inicializar la base de datos:**
 
    ```bash
    docker exec -i microinvent_db psql -U admin -d microinvent < database/init.sql
@@ -145,12 +164,12 @@ El desarrollo se divide por dominios funcionales para mantener la independencia 
    docker exec -i microinvent_db psql -U admin -d microinvent -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
    ```
 
-5. **Acceder a la aplicación:**
+6. **Acceder a la aplicación:**
 
    - Frontend: [http://localhost:5173](http://localhost:5173)
    - Backend API: [http://localhost:3000](http://localhost:3000)
 
-6. **Build y preview (frontend):**
+7. **Build y preview (frontend):**
 
    ```bash
    cd client
