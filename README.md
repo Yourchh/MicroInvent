@@ -117,7 +117,7 @@ El desarrollo se divide por dominios funcionales para mantener la independencia 
    DB_USER=admin
    DB_PASSWORD=adminpassword
    DB_NAME=microinvent
-   JWT_SECRET= "yorcheldelaramirez"
+   JWT_SECRET= "tusecretoaqui"
    NODE_ENV=development
    ```
 
