@@ -112,12 +112,12 @@ El desarrollo se divide por dominios funcionales para mantener la independencia 
 
    ```env
    PORT=3000
-   DB_HOST=db
+   DB_HOST=localhost
    DB_PORT=5432
-   DB_USER=postgres
-   DB_PASSWORD=postgres
+   DB_USER=admin
+   DB_PASSWORD=adminpassword
    DB_NAME=microinvent
-   JWT_SECRET=tu_secreto_super_seguro_aqui
+   JWT_SECRET= "yorcheldelaramirez"
    NODE_ENV=development
    ```
 
