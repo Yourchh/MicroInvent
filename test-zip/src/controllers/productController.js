@@ -1,0 +1,168 @@
+const pool = require('../config/db');
+const Product = require('../models/productModel');
+
+exports.getAllProducts = async (req, res) => {
+  try {
+    const { branch_id } = req.query;
+
+    if (branch_id) {
+      const query = `
+        SELECT 
+          p.id, p.sku, p.name, p.price, p.min_stock_alert,
+          COALESCE(i.quantity, 0) as quantity,
+          COALESCE(i.version, 1) as version
+        FROM products p
+        LEFT JOIN inventory i ON p.id = i.product_id AND i.branch_id = $1
+        ORDER BY p.name ASC
+      `;
+      const { rows } = await pool.query(query, [branch_id]);
+      return res.json(rows);
+    }
+
+    const products = await Product.findAll();
+    res.json(products);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+exports.createProduct = async (req, res) => {
+  const client = await pool.connect();
+
+  try {
+    const { sku, name, price, min_stock_alert, initial_stock = 0, min_stock = 0, max_stock = null, branch_id } = req.body;
+
+    console.log('📦 Crear producto payload:', { sku, name, price, min_stock_alert, initial_stock, min_stock, max_stock, branch_id, userBranch: req.user?.branch_id });
+
+    if (initial_stock < 0) {
+      return res.status(400).json({ message: 'El stock inicial no puede ser negativo' });
+    }
+    if (min_stock < 0) {
+      return res.status(400).json({ message: 'El stock mínimo no puede ser negativo' });
+    }
+
+    await client.query('BEGIN');
+
+    const checkQuery = 'SELECT id FROM products WHERE sku = $1';
+    const { rows: existing } = await client.query(checkQuery, [sku]);
+    
+    if (existing.length > 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ message: 'El SKU ya existe' });
+    }
+
+    const insertProductText = `
+      INSERT INTO products (sku, name, price, min_stock_alert)
+      VALUES ($1, $2, $3, $4) RETURNING *
+    `;
+    const { rows: productRows } = await client.query(insertProductText, [sku, name, price, min_stock_alert]);
+    const newProduct = productRows[0];
+
+    const { rows: branches } = await client.query('SELECT id FROM branches');
+
+    if (branches.length === 0) {
+      console.warn('⚠️ Se creó un producto pero no existen sucursales para asignarle inventario.');
+    }
+
+    const creatorBranchId = branch_id || req.user?.branch_id;
+    for (const branch of branches) {
+      const qtyForBranch = creatorBranchId && branch.id === creatorBranchId ? initial_stock : 0;
+      const insertInventoryText = `
+        INSERT INTO inventory (branch_id, product_id, quantity, min_stock, max_stock) 
+        VALUES ($1, $2, $3, $4, $5)
+      `;
+      await client.query(insertInventoryText, [branch.id, newProduct.id, qtyForBranch, min_stock, max_stock]);
+    }
+
+    await client.query('COMMIT');
+
+    res.status(201).json({
+      message: 'Producto creado e inventario inicializado correctamente',
+      product: newProduct
+    });
+
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Error en createProduct:', err);
+    res.status(500).json({ error: 'Error al procesar la creación del producto: ' + err.message });
+  } finally {
+    client.release();
+  }
+};
+
+exports.updateProduct = async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { id } = req.params;
+    const { sku, name, price, min_stock_alert, min_stock, max_stock, quantity, branch_id } = req.body;
+    await client.query('BEGIN');
+
+    const query = `
+      UPDATE products 
+      SET sku = $1, name = $2, price = $3, min_stock_alert = $4
+      WHERE id = $5 RETURNING *
+    `;
+    const { rows } = await client.query(query, [sku, name, price, min_stock_alert, id]);
+
+    if (rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ message: 'Producto no encontrado' });
+    }
+
+    if (branch_id) {
+      const invQuery = `
+        UPDATE inventory
+        SET quantity = COALESCE($1, quantity),
+            min_stock = COALESCE($2, min_stock),
+            max_stock = COALESCE($3, max_stock),
+            version = version + 1
+        WHERE branch_id = $4 AND product_id = $5
+      `;
+      if (quantity < 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ message: 'El stock actual no puede ser negativo' });
+      }
+      if (min_stock < 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ message: 'El stock mínimo no puede ser negativo' });
+      }
+      await client.query(invQuery, [quantity, min_stock, max_stock, branch_id, id]);
+    }
+
+    await client.query('COMMIT');
+    res.json({ message: 'Producto actualizado', product: rows[0] });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
+  }
+};
+
+exports.deleteProduct = async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { id } = req.params;
+    await client.query('BEGIN');
+
+    await client.query('DELETE FROM inventory WHERE product_id = $1', [id]);
+
+    const { rowCount } = await client.query('DELETE FROM products WHERE id = $1', [id]);
+
+    if (rowCount === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ message: 'Producto no encontrado' });
+    }
+
+    await client.query('COMMIT');
+    res.json({ message: 'Producto eliminado correctamente' });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    if (err.code === '23503') {
+      return res.status(400).json({ message: 'No se puede eliminar: El producto tiene historial de movimientos.' });
+    }
+    res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
+  }
+};

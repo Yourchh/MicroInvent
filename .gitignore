@@ -4,3 +4,7 @@ dist/
 .DS_Store
 coverage/
 .vscode/
+# Elastic Beanstalk Files
+.elasticbeanstalk/*
+!.elasticbeanstalk/*.cfg.yml
+!.elasticbeanstalk/*.global.yml
