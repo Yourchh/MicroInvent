@@ -503,24 +503,13 @@ El proyecto está diseñado para desplegarse en AWS usando servicios administrad
 
 ## Credenciales de Prueba
 
-Después de ejecutar los scripts de migración, el sistema incluye estos usuarios de prueba:
+Después de ejecutar los scripts de migración, el sistema incluye este usuarios de prueba:
 
 | Usuario | Contraseña | Rol | Sucursal |
 |:---|:---|:---|:---|
 | `superadmin` | `super123` | SuperAdmin | Sin asignar |
-| `admin` | `admin123` | Admin | Matriz |
-| `admin_norte` | `admin123` | Admin | Sucursal Norte |
-| `employee1` | `user123` | Employee | Matriz |
 
-Importante: cambiar estas contraseñas antes de producción.
-
----
-
-## Licencia
-
-MIT License - Ver archivo LICENSE para más detalles.
-
----
+Inicie sesion como administrador con estas credenciales para que pueda crear nuevos usuarios y sucursales 
 
 ## Desarrolladores
 
