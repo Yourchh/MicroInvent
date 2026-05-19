@@ -526,7 +526,7 @@ Inicie sesion como administrador con estas credenciales para que pueda crear nue
 
 **Proyecto desarrollado para las materias de:**
 
-- Desarrollo y Despliegue de Aplicaciones en La Nube.
-- Programación Web para Clientes y Usabilidad.
-- Desarrollo Backend con Frameworks Modernos.
-- Gestión de Proyectos de Software.
+- Desarrollo y Despliegue de Aplicaciones en La Nube
+- Programación Web para Clientes y Usabilidad
+- Desarrollo Backend con Frameworks Modernos
+- Gestión de Proyectos de Software
