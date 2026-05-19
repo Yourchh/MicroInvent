@@ -6,12 +6,13 @@
 
 - [Descripcion del Proyecto](#descripcion-del-proyecto)
 - [Tecnologias Utilizadas](#tecnologias-utilizadas)
-- [Responsabilidades por Modulo](#responsabilidades-por-modulo)
+- [Evidencias de Seguridad (Video Demo)](#evidencias-de-seguridad---video-demo)
+- [Formulario de Registro](#formulario-de-registro)
 - [Instalacion y Configuracion Local](#instalacion-y-configuracion-local)
-   - [Opcion 1: Con Docker (Recomendado)](#opcion-1-con-docker-recomendado)
-   - [Opcion 2: Instalacion Manual](#opcion-2-instalacion-manual)
+- [Opcion 1: Con Docker (Recomendado)](#opcion-1-con-docker-recomendado)
+- [Opcion 2: Instalacion Manual](#opcion-2-instalacion-manual)
 - [Guia de Usuario](#guia-de-usuario)
-   - [Roles y Permisos](#roles-y-permisos)
+- [Roles y Permisos](#roles-y-permisos)
 - [Funcionalidades y Uso (online y offline)](#funcionalidades-y-uso-online-y-offline)
 - [Arquitectura de Base de Datos](#arquitectura-de-base-de-datos)
 - [Despliegue en AWS](#despliegue-en-aws)
@@ -76,14 +77,70 @@ La arquitectura ha sido seleccionada para cumplir con los requisitos de alto ren
 
 ---
 
-## Responsabilidades por Modulo
+## Evidencias de Seguridad - Video Demo
 
-El desarrollo se divide por dominios funcionales para mantener la independencia del código y facilitar la colaboración.
+Este apartado documenta el funcionamiento y la validación en tiempo real del pipeline **DevSecOps** implementado para el ecosistema **MicroInvent**. El video adjunto sirve como evidencia práctica del cumplimiento de los controles de seguridad exigidos por la auditoría.
 
-| Desarrollador | Módulo / Funcionalidad | Descripción Técnica |
-|:---|:---|:---|
-| **Jorge** | **Frontend + Backend** | Desarrollo completo de la PWA (React + Vite, React Query, Dexie/IndexedDB, Tailwind), API REST en Express/Node, PostgreSQL, autenticación JWT, roles (SuperAdmin/Admin/Employee), inventario, movimientos, transferencias, reportes, sincronización offline/online y experiencia de usuario. |
-| **Angel** | **Despliegue en AWS** | Diseño y operación del plan de despliegue en AWS (Amplify/Elastic Beanstalk/RDS/S3), contenedores Docker, pipelines y hardening de la infraestructura. |
+video aqui
+
+---
+
+### Estructura y Puntos Clave Demostrados en el Video
+
+El video cuenta con una duración máxima de 5 minutos y se ejecuta de forma fluida bajo una arquitectura macOS (Apple Silicon), dividiéndose en las siguientes etapas críticas de ingeniería:
+
+#### Fase 1: Diagnóstico y Simulación del Fallo (El "Antes")
+* **Evidencia del Bloqueo:** Se muestra el historial de ejecuciones en **GitHub Actions**, exponiendo cómo el pipeline detuvo fulminantemente el despliegue automático (`Exit Code 1`).
+* **Análisis SCA:** Se visualizan los logs de error de `npm audit` detallando las vulnerabilidades de severidad **HIGH** en `axios@1.13.2` y **CRITICAL** en `jspdf@3.0.4`.
+* **Análisis de Infraestructura:** Se exhibe el reporte de **Trivy Image Scan** bloqueando el empaquetamiento debido a 11 vulnerabilidades de seguridad altas detectadas dentro del gestor `npm` global de la imagen base `node:20-alpine`.
+
+#### Fase 2: Ingeniería de Remediación y Hardening en Código
+* **Saneamiento Granular:** Se muestra en el editor de código la actualización manual de los archivos `package.json` hacia versiones seguras (`axios: "^1.16.1"` y `jspdf: "^4.2.1"`).
+* **Resolución de Conflictos Lógicos:** Se detalla cómo se evitó el comando destructivo `npm audit fix --force` (el cual degradaba librerías y rompía la compilación de Vite) y en su lugar se reconstruyó el árbol de dependencias localmente inyectando `react-is` mediante el uso estricto del parámetro `--legacy-peer-deps`.
+* **Endurecimiento del Dockerfile:** Se expone la inyección de la capa de actualización global (`RUN npm install -g npm@latest`) dentro de `server/Dockerfile` para mitigar los fallos del sistema operativo Alpine detectados por Trivy.
+
+#### Fase 3: Validación de Éxito en el Pipeline (El "Después")
+* **Flujo DevSecOps Completo:** Se graba en tiempo real el comportamiento asíncrono del pipeline ante el nuevo commit de seguridad.
+* **Resultados en Verde:** Se documenta cómo los escaneos de secretos (**TruffleHog**), composición de software (**SCA Frontend/Backend**) y seguridad de infraestructura (**Trivy**) superan con éxito las compuertas de calidad, finalizando todo el pipeline con un estado global de <span class="badge badge-success">SUCCESS</span> (Verde).
+
+---
+
+## Formulario de Registro
+
+Este módulo centraliza la autenticación, el control de acceso y el registro de auditoría del sistema **MicroInvent**. A continuación, se detallan las herramientas de seguridad automatizadas implementadas dentro del pipeline CI/CD en **GitHub Actions** para blindar este componente, así como los enlaces operativos del entorno.
+
+### Enlaces del Entorno de Producción
+
+* **Monitoreo de Integración Continua (Pipeline de Seguridad):** `https://github.com/Yourchh/MicroInvent/actions`
+
+---
+
+### Herramientas de Seguridad Utilizadas
+
+Para garantizar que el Formulario de Registro y la gestión de sesiones cumplan con los estándares institucionales de seguridad, se integraron tres controles automatizados bajo el enfoque de protección temprana (*Shift-Left Security*). El pipeline está configurado para interrumpir de forma fulminante (`Exit Code 1`) cualquier despliegue si alguna herramienta detecta un riesgo Alto o Crítico:
+
+#### A. Análisis de Composición de Software - SCA (`npm audit`)
+Se implementó para auditar exhaustivamente el árbol de dependencias de terceros involucradas en el flujo de registro, autenticación y cifrado (módulos críticos como `jsonwebtoken`, `bcryptjs` y `axios`). 
+* **Uso en el Pipeline:** Se ejecuta de forma aislada en las fronteras de `/client` y `/server` con el parámetro estricto `--audit-level=high`. Esto previene de forma proactiva ataques a la cadena de suministro de software y bloquea exploits conocidos (CVEs) de inyección de código o falsificación de peticiones antes de compilar la aplicación.
+
+#### B. Análisis Estático y Gestión de Secretos (TruffleHog)
+Garantiza de manera automatizada la confidencialidad y el manejo seguro de los datos sensibles requeridos por el backend.
+* **Uso en el Pipeline:** Analiza profundamente la entropía criptográfica y las firmas del código fuente en cada commit e historial de Git. Esto certifica que variables críticas como el `JWT_SECRET`, las credenciales de la base de datos PostgreSQL (`DB_PASSWORD`) y los tokens de Redis no se encuentren hardcodeados en el repositorio, delegando su inyección exclusivamente a variables de entorno cifradas en **GitHub Secrets**.
+
+#### C. Seguridad de Contenedores e Infraestructura Inmutable (Trivy)
+Protege el entorno virtual donde se ejecuta el servidor de la API de registro y autenticación.
+* **Uso en el Pipeline:** Una vez construido el contenedor Docker del backend (`microinvent-server:latest`), la herramienta de Aqua Security escanea capa por capa la imagen para identificar vulnerabilidades en el sistema operativo base (`Alpine Linux`). Durante la práctica, se utilizó para validar y forzar el endurecimiento (*hardening*) de la infraestructura mediante parches en tiempo de compilación.
+
+---
+
+### Estado del Control de Calidad DevSecOps
+
+| Fase de Control | Herramienta | Target | Umbral de Aprobación | Estado Actual |
+| :--- | :--- | :--- | :--- | :--- |
+| **Escaneo de Secretos** | TruffleHog | Historial Git | Cero llaves expuestas |  **PASSED** |
+| **SCA Frontend** | NPM Audit | `/client` | Ignorar < High |  **PASSED** (0 High/Critical) |
+| **SCA Backend** | NPM Audit | `/server` | Ignorar < High |  **PASSED** (0 High/Critical) |
+| **Seguridad Base** | Aqua Trivy | Imagen Docker | `exit-code: 1` en High/Critical |  **PASSED** (0 Vulnerabilidades Altas) |
 
 ---
 
