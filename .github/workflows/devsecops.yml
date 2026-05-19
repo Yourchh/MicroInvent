@@ -31,7 +31,7 @@ jobs:
       - name: SCA - Análisis de Dependencias (Frontend)
         working-directory: ./client
         run: |
-          npm install --package-lock-only
+          npm install --package-lock-only --legacy-peer-deps
           npm audit --audit-level=high
 
       - name: SCA - Análisis de Dependencias (Backend)
