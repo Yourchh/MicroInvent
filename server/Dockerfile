@@ -1,6 +1,8 @@
 # Usamos una imagen ligera de Node.js (Alpine es ideal para seguridad)
 FROM node:20-alpine
 
+RUN npm install -g npm@latest
+
 # Establecemos el directorio de trabajo dentro del contenedor
 WORKDIR /app
 
