@@ -81,7 +81,7 @@ La arquitectura ha sido seleccionada para cumplir con los requisitos de alto ren
 
 Este apartado documenta el funcionamiento y la validación en tiempo real del pipeline **DevSecOps** implementado para el ecosistema **MicroInvent**. El video adjunto sirve como evidencia práctica del cumplimiento de los controles de seguridad exigidos por la auditoría.
 
-video aqui
+https://github.com/user-attachments/assets/b19c643d-fe08-439c-b8f6-4715f956b19a
 
 ---
 
