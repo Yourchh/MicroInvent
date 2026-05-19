@@ -11,8 +11,33 @@ services:
       POSTGRES_DB: microinvent
     volumes:
       - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+
   redis:
     image: redis:alpine
     container_name: microinvent_redis
     ports:
       - "6379:6379"
+
+  server:
+    build: ./server
+    container_name: microinvent_server
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_USER=admin
+      - DB_PASSWORD=adminpassword
+      - DB_NAME=microinvent
+    depends_on:
+      - db
+      - redis
+
+  client:
+    build: ./client
+    container_name: microinvent_client
+    ports:
+      - "8080:80"
+    depends_on:
+      - server
